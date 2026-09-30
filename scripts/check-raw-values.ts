@@ -27,7 +27,7 @@ export interface Violation {
  * as a whole declaration value or standalone number, never as a substring of
  * something else (so this doesn't allow "10%" or "100px").
  */
-const ALLOWED_VALUES = new Set(["0", "0%", "100%", "1fr", "65ch"]);
+const ALLOWED_VALUES = new Set(["0", "0%", "100%", "100vh", "1fr", "65ch"]);
 
 /** Property names (case-insensitive) allowed exactly one raw hairline border width. */
 const HAIRLINE_PROPERTIES = /^(border|border-(top|right|bottom|left|block|inline)(-(start|end))?)(-width)?$/i;

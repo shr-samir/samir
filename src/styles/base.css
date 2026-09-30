@@ -10,22 +10,6 @@
     background: var(--color-bg);
   }
 
-  /*
-   * Temporary page-edge gutter (PRD §7.2: `s` on mobile, `m` at the `md`
-   * breakpoint and up), until F1b's container/section primitives replace it.
-   * Applies to <main> directly; a page whose <main> is itself a container
-   * (e.g. /design/'s .demo) sets its own horizontal padding and overrides this.
-   */
-  main {
-    padding-inline: var(--space-s);
-  }
-
-  @media (min-width: 768px) {
-    main {
-      padding-inline: var(--space-m);
-    }
-  }
-
   /* Links in running text stay underlined, so they never rely on color alone (PRD §7.3). */
   a {
     color: var(--color-accent);

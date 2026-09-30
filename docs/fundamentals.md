@@ -490,7 +490,57 @@ still looks like a raw length, color or duration. It's wired into the build
 (`build.ts`), so a raw value fails `pnpm build` the same way a missing page
 title would.
 
-## 15. Coming in later layers
+## 15. Flex sizing, and how `container-type` can quietly undo it
+
+A flex container with `flex-direction: column` (like this site's page shell:
+header, main, footer stacked vertically) splits sizing into two separate
+questions, easy to conflate:
+
+- **Along the flex direction** (here, vertical): `flex: 1` on `main` means
+  "take whatever height is left after the header and footer" — the mechanism
+  that avoids a hardcoded `calc(100vh - …)`
+  ([F1b's layout primitives](features/F1b-layout-shell.md#l1--layout-primitives)).
+- **Across the flex direction** (here, horizontal): `flex: 1` says nothing
+  about width at all. A flex item is normally stretched to fill that width by
+  `align-items: stretch` (flex's own default), not by `flex: 1`.
+
+**`container-type: inline-size`** (needed so a component can query its own
+container instead of the viewport — [fundamentals §13](#13-css-without-tailwind-design-tokens-and-cascade-layers))
+turns an element into a *size containment* context: its own content can no
+longer influence its size in that axis. Combine that with `min-width: 0`
+(routinely added to stop a flex item's content from forcing a minimum width)
+and there is, in practice, nothing left telling the element how wide to be —
+the "stretch by default" behavior doesn't reliably survive the combination.
+The element can collapse to almost nothing.
+
+This was found the hard way in F1b L1: `main` briefly rendered its content
+one character per line. The fix is direct rather than clever — give the
+element an explicit `width: 100%` instead of relying on inherited stretch
+behavior once it's also a containment context:
+
+```css
+body > main {
+  flex: 1;          /* fills the leftover height */
+  width: 100%;       /* explicit, because container-type below removes the
+                         implicit signal that would otherwise provide this */
+  min-width: 0;
+  container-type: inline-size;
+}
+```
+
+**How the cause was actually found:** several plausible theories (the
+flexbox min-width default, `@layer` itself, undefined CSS custom properties)
+were each tested in isolation and each *passed* — none reproduced the bug. A
+hand-typed "minimal case" that fails to reproduce a bug is a sign the
+minimal case is missing the real trigger, not evidence there is no bug. The
+fix was to stop constructing cases by hand and bisect the real, generated
+`site.css` directly (extracting exact top-level blocks, the same way the
+raw-value checker parses CSS, so every test file was guaranteed valid),
+removing pieces until the smallest reproducing file was found, then diffing
+it against a same-shaped but non-reproducing file to see the one real
+difference. → [F1b's discovered checklist](features/F1b-layout-shell.md#discovered-checklist)
+
+## 16. Coming in later layers
 
 Sections to add as the features that need them are built:
 

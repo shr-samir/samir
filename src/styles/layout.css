@@ -1,0 +1,124 @@
+/*
+ * Layout primitives (F1b-D4, PRD §7.2): container, section, stack, grid.
+ * Tokens only. Page-level layout (this file) uses @media; components nested
+ * inside a container use @container instead, so they react to their own
+ * available space, not the browser window (F1b-D4).
+ */
+@layer layout {
+  /*
+   * The page shell: header and footer size to their own content; main takes
+   * whatever space is left. No hardcoded height, no calc(100vh - ...) — the
+   * browser measures header/footer itself, every time.
+   */
+  body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  body > header,
+  body > footer {
+    flex: none;
+  }
+
+  body > main {
+    flex: 1;
+    /*
+     * width: 100% is required here, not just a safety net: container-type:
+     * inline-size below makes main a size-containment context, and combined
+     * with a flex-column parent that removes the usual signal that would
+     * otherwise stretch main to fill the row. Without an explicit width,
+     * main can collapse to almost nothing (verified: it shrank to a single
+     * character's width per line). min-width: 0 additionally stops a flex
+     * item's default content-based minimum (its own separate effect) from
+     * fighting a narrow container on top of that.
+     */
+    width: 100%;
+    min-width: 0;
+    /* A component inside main queries *this* container's width, never the
+       viewport, so it adapts to its real available space (F1b-D4). */
+    container-type: inline-size;
+  }
+
+  /* Reading column: prose, forms, anything meant to stay a comfortable line length. */
+  .container {
+    max-inline-size: var(--width-content);
+    margin-inline: auto;
+    padding-inline: var(--space-s);
+  }
+
+  /* Wide column: grids, galleries, anything that benefits from more room. */
+  .container-wide {
+    max-inline-size: var(--width-wide);
+    margin-inline: auto;
+    padding-inline: var(--space-s);
+  }
+
+  @media (min-width: 768px) {
+    .container,
+    .container-wide {
+      padding-inline: var(--space-m);
+    }
+  }
+
+  /*
+   * Section spacing: the gap between major blocks of a page (PRD §7.2's
+   * "section to section" rule). A section never sets its own top/bottom
+   * margin; the gap comes from this shared rule so spacing stays consistent
+   * everywhere sections are used.
+   */
+  .section + .section {
+    margin-block-start: var(--space-xl);
+  }
+
+  @media (min-width: 768px) {
+    .section + .section {
+      margin-block-start: var(--space-2xl);
+    }
+  }
+
+  /*
+   * Stack: consistent vertical rhythm between a group of related children,
+   * without every child needing its own margin. `gap` is preferred to the
+   * lobotomized-owl (`* + *`) selector where the container is already a flex
+   * column, since gap doesn't leak margin onto the group's outer edges.
+   */
+  .stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-m);
+  }
+
+  .stack-s {
+    gap: var(--space-s);
+  }
+
+  .stack-l {
+    gap: var(--space-l);
+  }
+
+  /*
+   * Grid: 4 columns on mobile, 8 on tablet, 12 on desktop (PRD §7.2),
+   * gutters from the spacing scale. A grid *item* that needs to change its
+   * own layout based on how much room it actually has (not the screen) uses
+   * @container on its own wrapper — this class only sets up the columns.
+   */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-s);
+  }
+
+  @media (min-width: 768px) {
+    .grid {
+      grid-template-columns: repeat(8, 1fr);
+      gap: var(--space-m);
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .grid {
+      grid-template-columns: repeat(12, 1fr);
+    }
+  }
+}

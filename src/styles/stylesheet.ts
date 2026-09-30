@@ -28,6 +28,7 @@ export default async function stylesheet(): Promise<string> {
     colorsCss(),
     await source("fonts.css"),
     await source("base.css"),
+    await source("layout.css"),
     demoCss(),
   ];
   return parts.join("\n");

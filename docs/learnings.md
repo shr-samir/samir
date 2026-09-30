@@ -8,6 +8,12 @@ decision) for detail. Add entries in the same PR as the code that taught them.
 
 ## Entries
 
+- 2026-09-30 [F1a] A path-traversal test using a literal `/../secret.txt` passed even after deleting the guard it was meant to test: Node's `URL` constructor normalizes `..` segments in the raw URL *before* percent-decoding, so the code under test never saw a `..` at all. A percent-encoded `/foo/..%2f..%2fsecret.txt` survives that normalization and is the real bypass a path guard has to stop. When testing a security check, mutation-test it (delete the guard, confirm the test then fails) rather than trusting that a passing test means the guard works. → [F1a X18](features/F1a-design-tokens-and-fonts.md#discovered-checklist)
+
+- 2026-09-30 [F1a] A 320px-wide headless-Chrome screenshot showed paragraph text apparently clipped at the right edge. Checked the real DOM (`scrollWidth === clientWidth`, both 320) before reporting it: no actual overflow, just a screenshot capture too narrow to show full words. Verify against the DOM before reporting a layout bug from a screenshot alone. → [F1a Practical UI review](features/F1a-design-tokens-and-fonts.md#practical-ui-review-part-of-o22-before-the-f1a-close-out)
+
+- 2026-09-30 [F1a] Writing "does `index` fall after a colon" as a regex over the *whole line* misfires on `:root { ... }`: the colon in the selector `:root` gets found first, not the declaration's own colon. Search from the last `;`/`{` before the value instead of from line start. → [F1a-D20](features/F1a-design-tokens-and-fonts.md#f1a-d20-raw-value-check-scope-is-hand-written-css-under-srcstyles-excluding-fontscss)
+
 - 2026-09-30 [F1a] Inter's variable Latin files (upright 48.3 KB + italic 51.8 KB) total 100.1 KB, just over a 100 KB font budget; Geist is 60.4 KB. Measure candidates before choosing, since sizes vary 2.5× between similar-looking sans fonts. → [F1a-D19](features/F1a-design-tokens-and-fonts.md#f1a-d19-geist--geist-mono-q1)
 - 2026-09-30 [F1a] Tuned fallback faces (`size-adjust` + ascent/descent overrides) made the fallback take exactly the web font's space (92px vs 92px; plain Arial 84px). Measure `size-adjust` from rendered text width rather than the font's `xAvgCharWidth`. → [F1a-D17](features/F1a-design-tokens-and-fonts.md#f1a-d17-fallback-metrics-come-from-measurement-not-the-fonts-average-width-field)
 

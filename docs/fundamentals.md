@@ -479,6 +479,17 @@ because fonts are always fetched in CORS mode.
   [`document.ts`](../src/layout/document.ts) (preload),
   [`font-metrics.ts`](../scripts/font-metrics.ts) (reading metrics from the file).
 
+**Enforcing a rule with a script, not a linter.** Tools like Stylelint enforce
+CSS rules through a plugin ecosystem and a config file. For one narrow rule —
+"every value is a token, except a short, fixed list of exceptions" — a plain
+Node script that pattern-matches the CSS text does the same job without a
+dependency (D0): [`check-raw-values.ts`](../scripts/check-raw-values.ts) reads
+each hand-written `.css` file, strips comments/strings/`url()` so real code
+isn't confused with text that merely looks like code, and flags anything that
+still looks like a raw length, color or duration. It's wired into the build
+(`build.ts`), so a raw value fails `pnpm build` the same way a missing page
+title would.
+
 ## 15. Coming in later layers
 
 Sections to add as the features that need them are built:

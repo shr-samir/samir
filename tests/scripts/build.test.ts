@@ -88,6 +88,38 @@ test("builds without a stylesheet module", () =>
     await assert.rejects(access(join(root, "dist", "site.css")));
   }));
 
+test("fails the whole build on a raw value in hand-written CSS (O21)", () =>
+  withFixture(
+    {
+      "src/pages/index.ts": pageModule([["/", "Home"]]),
+      "src/styles/base.css": ".x { color: #fff; }",
+      "src/styles/stylesheet.ts": "export default () => '';",
+    },
+    async (root) => {
+      await assert.rejects(build({ root }), /Raw design values found.*base\.css:1 "#fff"/s);
+      await assert.rejects(build({ root }), /Raw design values found/); // fails before writing site.css
+    },
+  ));
+
+test("does not check fonts.css for raw values (X14)", () =>
+  withFixture(
+    {
+      "src/pages/index.ts": pageModule([["/", "Home"]]),
+      "src/styles/fonts.css": "@font-face { font-family: X; size-adjust: 102.19%; }",
+      "src/styles/stylesheet.ts": "export default () => 'ok';",
+    },
+    async (root) => {
+      const result = await build({ root });
+      assert.equal(result.stylesheet, true);
+    },
+  ));
+
+test("builds fine with no src/styles directory at all", () =>
+  withFixture({ "src/pages/index.ts": pageModule([["/", "Home"]]) }, async (root) => {
+    const result = await build({ root });
+    assert.equal(result.stylesheet, false);
+  }));
+
 test("fails when site.css collides with a public/ file", () =>
   withFixture(
     {

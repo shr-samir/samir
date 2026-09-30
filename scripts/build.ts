@@ -9,6 +9,7 @@ import { cp, mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve, isAbsolute } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { outputFile, type Page, type PageModule } from "#src/lib/page.ts";
+import { checkRawValues } from "#scripts/check-raw-values.ts";
 
 export interface BuildOptions {
   /** Project root containing `src/pages/` and optionally `public/`. */
@@ -47,7 +48,18 @@ export async function build({ root, outDir = join(root, "dist") }: BuildOptions)
     await writeNew(join(outDir, outputFile(page.path)), page.body.value, `Page "${page.path}"`);
   }
 
-  const stylesheetModule = join(root, "src", "styles", "stylesheet.ts");
+  const stylesDir = join(root, "src", "styles");
+  if (await exists(stylesDir)) {
+    // Every hand-written CSS file must use tokens, not raw values (R1, D2). Checked
+    // before writing site.css, so a violation fails the build with no output.
+    const violations = await checkRawValues(stylesDir);
+    if (violations.length > 0) {
+      const list = violations.map((v) => `  - ${v.file}:${v.line} "${v.value}" — ${v.reason}`).join("\n");
+      throw new Error(`Raw design values found outside the token source:\n${list}`);
+    }
+  }
+
+  const stylesheetModule = join(stylesDir, "stylesheet.ts");
   const hasStylesheet = await exists(stylesheetModule);
   if (hasStylesheet) {
     const module = (await import(pathToFileURL(stylesheetModule).href)) as Partial<StylesheetModule>;

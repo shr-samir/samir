@@ -8,6 +8,9 @@ decision) for detail. Add entries in the same PR as the code that taught them.
 
 ## Entries
 
+- 2026-09-30 [F1a] Inter's variable Latin files (upright 48.3 KB + italic 51.8 KB) total 100.1 KB, just over a 100 KB font budget; Geist is 60.4 KB. Measure candidates before choosing, since sizes vary 2.5× between similar-looking sans fonts. → [F1a-D19](features/F1a-design-tokens-and-fonts.md#f1a-d19-geist--geist-mono-q1)
+- 2026-09-30 [F1a] Tuned fallback faces (`size-adjust` + ascent/descent overrides) made the fallback take exactly the web font's space (92px vs 92px; plain Arial 84px). Measure `size-adjust` from rendered text width rather than the font's `xAvgCharWidth`. → [F1a-D17](features/F1a-design-tokens-and-fonts.md#f1a-d17-fallback-metrics-come-from-measurement-not-the-fonts-average-width-field)
+
 - 2026-09-30 [F1a] Dark, saturated blues and teals fall outside sRGB sooner than expected: OKLCH L 0.44 / C 0.15 at hue 255 already needs a negative red channel. Fit chroma to the gamut per lightness (binary search) instead of hand-tuning. → [F1a-D16](features/F1a-design-tokens-and-fonts.md#f1a-d16-chroma-is-fitted-into-the-srgb-gamut-by-the-generator-the-gamut-check-stays-as-a-guard)
 - 2026-09-30 [F1a] Inherited `color` is resolved on the parent, so a child that switches `color-scheme` or redefines `--color-*` must restate `color: var(--color-text)` to use its own palette. → [F1a X11](features/F1a-design-tokens-and-fonts.md#discovered-checklist)
 - 2026-09-30 [F1a] To preview OS dark mode in headless Chrome, put the page in an iframe with `color-scheme: dark`; the framed page's `prefers-color-scheme` follows it. → [F1a layer log](features/F1a-design-tokens-and-fonts.md#layer-log)

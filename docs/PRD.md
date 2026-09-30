@@ -3,8 +3,8 @@
 | | |
 |---|---|
 | **Owner** | Samir Shrestha |
-| **Status** | Draft v0.14 |
-| **Last updated** | 2026-09-28 |
+| **Status** | Draft v0.15 |
+| **Last updated** | 2026-09-30 |
 | **Reference** | [jasoncameron.dev](https://jasoncameron.dev/) — a more refined take on it |
 
 This is a living document. Features get added, removed, or reordered through the
@@ -285,10 +285,10 @@ only), `--font-*` (roles), `--radius-*`, `--shadow-*`, `--duration-*`, and
 
   | Role | Used for | Default |
   |---|---|---|
-  | `sans` | All UI and body text | Inter [assumption: may change] |
+  | `sans` | All UI and body text | Geist (chosen in F1a; Inter measured 100.1 KB for upright + italic, over budget) |
   | `heading` | Headings | Same as `sans`; can point to a second, more characterful face |
   | `meta` | Small metadata: dates, tags, tech stacks | Same as `sans`; can be switched to `code` for a monospace look |
-  | `code` | Code blocks and inline code | JetBrains Mono [assumption: may change] |
+  | `code` | Code blocks and inline code | Geist Mono (chosen in F1a) |
 
   At most 2 font families are active at once: `sans` plus either a `heading` face or the `code` face used for `meta`.
 - **Weights:** regular (400) and bold (700) only, site-wide. No light or thin weights.
@@ -519,7 +519,6 @@ enhancement, and a full Lighthouse and accessibility audit.
 
 | # | Item | Resolve by |
 |---|---|---|
-| Q1 | Final fonts: Inter is the most common UI font, so choose it on purpose or pick something more distinctive; JetBrains Mono for code; whether `meta` uses monospace | During F1a |
 | Q2 | The 3–4 accent hues | During F1a/F3 |
 | Q3 | Hosting platform (D5) | Before F12 |
 | Q5 | Which hero action is primary: resume or email? | Before F4 |
@@ -576,3 +575,4 @@ and a row in §8 when promoted; dependencies still follow D0.
 | 2026-09-27 | v0.10–v0.12 — Gap review: project structure, information architecture, URL scheme, token naming, caching, security and privacy, test strategy; future enhancements (§11); decisions on pages, resume, contact, GitHub, MIT license, and placeholder domain. |
 | 2026-09-28 | v0.13 — Cleanup: removed resolved questions, closed risks, superseded decisions, and version asides; condensed the change log. Removed the local commit-message hook: PRs are squash-merged, so F12 checks PR titles in CI instead. Problem statement reworded to a plain, casual tone. |
 | 2026-09-28 | v0.14 — F1a spike S1: TypeScript 7 setup verified (D6 now high confidence, R-7 closed). Added `@types/node` as a second dev-only dependency (D0). Node requirement tightened to ≥ 24.12, where type stripping is stable. Absolute imports via Node subpath imports; tests moved to a mirrored `tests/` folder. Docs layered: `docs/README.md` map, `docs/fundamentals.md`, and an Understanding section in every feature doc. |
+| 2026-09-30 | v0.15 — Q1 resolved in F1a L4: Geist + Geist Mono, self-hosted (Inter measured 100.1 KB for upright + italic, over the 100 KB budget); `meta` stays on the sans font so the mono file loads only on pages with code. |

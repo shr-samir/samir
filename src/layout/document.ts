@@ -18,6 +18,7 @@ export function document({ title, description, body }: DocumentOptions): SafeHtm
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>${title}</title>
     <meta name="description" content="${description}">
+    <link rel="preload" href="/fonts/geist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/site.css">
   </head>
   <body>

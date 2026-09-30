@@ -418,12 +418,71 @@ also rejects colors a normal (sRGB) screen can't display, since the browser
 would silently substitute a different color and the computed contrast would be
 wrong. → [`color.ts`](../src/styles/color.ts), [`palette.ts`](../src/styles/palette.ts)
 
-## 14. Coming in later layers
+## 14. Fonts: when they download, and why text doesn't jump
+
+With a framework you'd import a font package (or Next.js `next/font`) and it
+would do all of this for you. Underneath, it's four platform features.
+
+**`@font-face` declares, it doesn't download.** A rule like
+
+```css
+@font-face {
+  font-family: "Geist";
+  src: url("/fonts/geist-latin-wght-normal.woff2") format("woff2");
+  font-style: italic;
+}
+```
+
+only tells the browser where the italic Geist file *would* be. The browser
+fetches it once some text on the page is rendered in Geist italic. So a site can
+declare italic and code fonts everywhere and still download them only on pages
+that use them. This site's home page downloads one font file; a page without
+italics never fetches the italic file.
+
+**Variable fonts: one file, every weight.** A variable font holds a continuous
+weight axis (here 100–900), so regular and bold come from the same file instead
+of one file each. `font-weight: 100 900` in the `@font-face` tells the browser
+that range is inside.
+
+**`font-display: swap`: never hide text.** Without it, browsers may hide text
+for up to a few seconds while a font downloads. `swap` shows text immediately
+in the next font in the list and replaces it when the web font arrives.
+
+**Why text jumps, and the fix.** The fallback (Arial, say) has different letter
+widths and line metrics than the web font, so the swap can re-wrap lines and
+push everything below down: *layout shift*, which is jarring and hurts the CLS
+score. CSS lets a fallback face be reshaped to match:
+
+```css
+@font-face {
+  font-family: "Geist Fallback";
+  src: local("Arial");
+  size-adjust: 102.19%;       /* Geist is 2.19% wider than Arial */
+  ascent-override: 98.35%;    /* Geist's space above the baseline */
+  descent-override: 28.87%;   /* and below it */
+}
+```
+
+and `font-family: "Geist", "Geist Fallback", sans-serif` uses it while Geist
+loads. Measured here: a paragraph is 92px tall in Geist, 92px in the tuned
+fallback, 84px in plain Arial. (Safari ignores the two overrides, so it may
+still shift slightly.) Next.js's `next/font` generates exactly this kind of
+fallback face for you.
+
+**Preload the one file every page needs.** Normally the browser discovers a
+font only after downloading and parsing the CSS. A
+`<link rel="preload" as="font" crossorigin>` in the `<head>` starts that
+download right away. Fonts need `crossorigin` even from your own domain,
+because fonts are always fetched in CORS mode.
+
+- **Where:** [`fonts.css`](../src/styles/fonts.css),
+  [`document.ts`](../src/layout/document.ts) (preload),
+  [`font-metrics.ts`](../scripts/font-metrics.ts) (reading metrics from the file).
+
+## 15. Coming in later layers
 
 Sections to add as the features that need them are built:
 
-- **Fonts** (F1a L4): when the browser actually downloads a font,
-  `font-display: swap`, fallback metrics and layout shift.
 - **The dev server and "hot reload"** (F1b): what hot reload really is: a file
   watcher, a rebuild, and a message to the browser saying "reload" (server-sent
   events).

@@ -26,7 +26,7 @@ site content yet.
 | L1 Foundations | A tiny program that writes HTML files, with safe templates | done |
 | L2 Tokens | Sizes, spacing and motion as CSS variables; base text styles; demo page | done |
 | L3 Color | Light and dark palettes per accent, and a contrast check | in review |
-| L4 Fonts | Chosen fonts, measured, self-hosted | planned |
+| L4 Fonts | Chosen fonts, measured, self-hosted | in review |
 | L5 Raw-value check | Build fails if CSS skips the design system | planned |
 
 ### L1 — Foundations
@@ -256,6 +256,68 @@ redefines the same variable names.
   selected-state text, button text and status text must reach 4.5:1; control
   borders and the focus ring 3:1. That's 35 pairs per palette, 280 in total.
 
+### L4 — Fonts
+
+**Essence.** The site now uses Geist for text and Geist Mono for code, served
+from our own domain as three small files. The browser only downloads a file
+when the page actually uses it: the home page fetches one file (29 KB), the
+demo page two (52 KB), and the italic file only loads on pages with italic
+text. While a file downloads, text shows in a system font (Arial, Courier New)
+that has been resized and re-measured to take up exactly the same space, so
+nothing jumps when Geist arrives.
+
+**What changed**
+- `public/fonts/`: `geist-latin-wght-normal.woff2` (29.4 KB), `…-italic.woff2` (31.0 KB), `geist-mono-latin-wght-normal.woff2` (23.1 KB), and `OFL.txt` (the license).
+- `src/styles/fonts.css`: `@font-face` rules for Geist, Geist italic and Geist Mono; tuned fallback faces; the role variables (`--font-sans`, `--font-heading`, `--font-meta`, `--font-code`).
+- `scripts/font-metrics.ts`: reads a font's vertical metrics from its WOFF2 file, used to tune the fallbacks.
+- `src/layout/document.ts`: preloads the upright Geist file, which every page uses.
+- `src/styles/base.css`: code blocks turn off ligatures; `demo-css.ts`: metadata text uses `--font-meta`.
+
+**Questions asked**
+- *Is there an issue with the font? Do we need to worry about size now?* (at
+  Gate 1) Not then; it was measured here, before choosing. Inter turned out
+  0.1 KB over the budget (100.1 KB for upright + italic).
+- *Which font?* Geist + Geist Mono: designed as a pair, 60 KB for both text
+  files, 84 KB with the code font. Chosen from six measured candidates. (F1a-D19)
+- *Should metadata use monospace?* No: it would load the mono file on every
+  page, making three files on pages with italics. It stays a one-line switch.
+- *Are these variable (dynamic) fonts or static?* Variable. Verified in Chrome:
+  one file rendered the same text at weights 100, 400, 550, 700 and 900 with five
+  distinct widths (550 sits between 400 and 700; a static font would snap to the
+  nearest weight it has). Static fonts need one file per weight and style, so
+  regular, bold, italic and bold italic would be four files, twice the budget's
+  two. `font-weight: 100 900` in the `@font-face` and `wght` in the file name
+  mark the weight axis. Trade-off: the file carries weights we never use (the
+  design uses only 400 and 700).
+
+**Questions you might have**
+- *Why self-host instead of Google Fonts?* No extra connection to another
+  domain before text can render, no visitor data sent to a third party, and the
+  files are cached with the rest of the site. (D4)
+- *What does `font-display: swap` do?* Shows text immediately in the fallback
+  font and swaps in Geist when it arrives, instead of hiding text while waiting.
+- *Why would text jump, and how is that prevented?* Arial is about 2% narrower
+  than Geist and sits differently on the line, so swapping could re-wrap lines
+  and move everything below (layout shift). The fallback faces fix that:
+  `size-adjust` scales Arial to Geist's width, and `ascent-override` /
+  `descent-override` give it Geist's line metrics. Measured result: a paragraph
+  is 92px tall in Geist, 92px in the tuned fallback, 84px in plain Arial.
+  → [fundamentals §14](../fundamentals.md#14-fonts-when-they-download-and-why-text-doesnt-jump)
+- *Why only one weight file per style?* They're variable fonts: one file holds
+  every weight from 100 to 900, so regular and bold come from the same file.
+- *Why preload only the upright file?* Every page uses it, so starting that
+  download early helps first paint. Preloading the italic or mono file would
+  force it onto pages that never use it.
+- *What's the `unicode-range` for?* It tells the browser which characters the
+  file covers (Latin). A character outside it, say Nepali script, falls through
+  to a system font instead of rendering as a blank box.
+- *Why turn off ligatures in code?* Some code fonts merge `=>` into one arrow
+  glyph (JetBrains Mono did in the specimen; Geist Mono didn't). Code should show
+  exactly what you'd type, and the rule keeps that true if the font changes.
+- *What if I swap fonts later?* Edit `fonts.css`: the file URLs and the family
+  name in `--font-sans`. Re-run `node scripts/font-metrics.ts` on the new file
+  and re-measure the width ratio to update the fallback values.
+
 ## Problem statement
 Lay the foundation every later feature builds on. That means a working TypeScript 7
 setup, a minimal build that writes static pages, and the `html` escaping helper;
@@ -337,8 +399,8 @@ Each layer is one PR, adds standalone value, and is approved before the next.
 - **Why it fits:** already subset and licensed; a one-time copy needs no dependency (D0, D4).
 - **Alternative:** full files plus `fonttools` subsetting — a Python toolchain for a one-time job.
 - **Would be wrong if:** file sizes break the budget (≤ 2 files, ≤ 100 KB per page). [assumption: unmeasured]
-- **Confidence:** low (accepted risk)
-- **Spike:** S2 declined; sizes are measured at the start of L4, before choosing fonts.
+- **Confidence:** high (was low, accepted risk). Resolved in L4: measured six families; Inter is 100.1 KB for upright + italic (over), Geist 60.4 KB.
+- **Spike:** S2 declined; sizes were measured at the start of L4, before choosing fonts.
 
 ### F1a-D6: Two TypeScript configs
 - **Decision:** `tsconfig.json` type-checks everything Node runs, with no emit (`erasableSyntaxOnly`, `verbatimModuleSyntax`, `allowImportingTsExtensions`, `module: nodenext`, `types: ["node"]`). `tsconfig.client.json` emits `src/client` as ES modules (`rewriteRelativeImportExtensions`, DOM libs).
@@ -428,10 +490,34 @@ Each layer is one PR, adds standalone value, and is approved before the next.
 - **Confidence:** high
 - **Spike:** none
 
+### F1a-D17: Fallback metrics come from measurement, not the font's average-width field
+- **Decision:** `size-adjust` = rendered width of an English paragraph in Geist ÷ the same in the local fallback, measured in Chrome (Arial 102.19%, Arial Italic 99.94%, Courier New 99.98%); ascent/descent overrides = Geist's hhea metrics (read by `scripts/font-metrics.ts`) ÷ `size-adjust`.
+- **Why it fits:** the OS/2 `xAvgCharWidth` field is a rough average over all glyphs, not over real text; measuring a paragraph matches what visitors see. [verified: tuned fallback matches Geist's box exactly — 92px vs 92px (plain Arial 84px), code 547.0 vs 547.2px wide]
+- **Alternative:** a metrics package such as `@capsizecss/metrics` — a dependency for three numbers (D0); or `xAvgCharWidth` alone — less accurate.
+- **Would be wrong if:** visitors' fallback isn't Arial (Android uses Roboto); there the fallback is untuned, the same as without overrides.
+- **Confidence:** high
+- **Spike:** none
+
+### F1a-D18: Preload only the upright Geist file
+- **Decision:** `document()` adds `<link rel="preload" as="font" type="font/woff2" crossorigin>` for `geist-latin-wght-normal.woff2`.
+- **Why it fits:** every page uses it; preloading starts the download with the HTML instead of after the CSS is parsed, which helps first paint. [memory: preload fetches font files early; fonts need `crossorigin` even on the same origin]
+- **Alternative:** preload all three — forces italic and mono onto pages that never use them, against the budget.
+- **Would be wrong if:** measured first paint doesn't improve (check with Lighthouse in F11).
+- **Confidence:** high
+- **Spike:** none
+
+### F1a-D19: Geist + Geist Mono (Q1)
+- **Decision:** Geist for `sans` (and so `heading` and `meta`), Geist Mono for `code`.
+- **Why it fits:** chosen by the owner from six measured candidates. Upright + italic 60.4 KB, with mono 83.5 KB — well within both budgets; designed as a pair; less ubiquitous than Inter. [verified: Fontsource API and CDN, 2026-09-30; OFL-1.1]
+- **Alternative:** Inter + JetBrains Mono (PRD default) — 100.1 KB for text, over the 100 KB budget; Atkinson Hyperlegible Next — strongest legibility, 112 KB with code.
+- **Would be wrong if:** Geist's look doesn't fit the brand once real content lands; swapping is a `fonts.css` edit.
+- **Confidence:** high
+- **Spike:** none
+
 ## Edge cases
 - 200% zoom and larger user font size: rem-based clamps (D4). At 200% zoom the demo page reflows with no horizontal scrolling; body sizes double exactly, fluid headings reach 164–182% and double by 250–300% zoom (X6, accepted).
 - Out-of-gamut color: build fails (B4).
-- Font slow or blocked: `font-display: swap` and a `size-adjust`-tuned fallback. Safari doesn't support `ascent-override` ([MDN](https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face/ascent-override)), so Safari may see a small shift on swap; accepted as progressive enhancement.
+- Font slow or blocked: `font-display: swap` and a tuned fallback; measured in Chrome, the fallback takes exactly Geist's space (F1a-D17). Safari doesn't support `ascent-override` ([MDN](https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face/ascent-override)), so Safari may see a small vertical shift on swap; accepted as progressive enhancement.
 - Italic missing: a real italic file ships, so browsers never fake a slanted version.
 - Reduced motion: duration tokens become `0s` under `prefers-reduced-motion`, in one place.
 - Forced colors: focus styles use `outline`, not `box-shadow`.
@@ -478,9 +564,9 @@ Frozen at approval. Never edited afterwards; only ticked.
 - [x] O16. The demo page shows every palette side by side, with no JavaScript.
 
 **L4 — Fonts**
-- [ ] O17. File sizes measured against the budget before choosing (Q1); the chosen Latin variable `.woff2` files are self-hosted with their licenses.
-- [ ] O18. `fonts.css` has `@font-face` rules with `font-display: swap` and role variables. Swapping a family and switching `meta` to mono are each a one-line edit, both demonstrated.
-- [ ] O19. Metric-tuned fallback fonts (`size-adjust`, and the override descriptors where supported).
+- [x] O17. File sizes measured against the budget before choosing (Q1); the chosen Latin variable `.woff2` files are self-hosted with their licenses.
+- [x] O18. `fonts.css` has `@font-face` rules with `font-display: swap` and role variables. Swapping a family and switching `meta` to mono are each a one-line edit, both demonstrated.
+- [x] O19. Metric-tuned fallback fonts (`size-adjust`, and the override descriptors where supported).
 
 **L5 — Raw-value check**
 - [ ] O20. The check flags raw lengths, colors and durations outside the token source. It allows the allowlist, and breakpoints only inside `@media`/`@container` conditions, and ignores comments, strings, `url()` and custom property names. Tests cover each case.
@@ -502,6 +588,9 @@ Anything unplanned. Never moved into the original checklist.
 - [x] X9. O9 says headings use line height 1.2; h3 (`text-xl`) uses 1.3 and h4 (`text-lg`) 1.4, because those sizes also set lead paragraphs and the PRD says line height shrinks as size grows. h1/h2 use 1.2, the hero 1.1 — **Trigger:** L2 self-check against the frozen checklist — **Deferrable** (kept by the owner, 2026-09-30; O9 ticked on that basis)
 - [ ] X10. The blue accent (hue 255) sits close to the `info` status color (hue 245); harmless because status always has a label, but if blue is chosen, `info` could move toward cyan — **Trigger:** L3 demo page screenshots — **Deferrable**, decide with Q2
 - [x] X11. Inherited `color` is resolved on the parent, so a panel that changes `color-scheme` or `data-accent` still inherits the page's text color; demo panels restate `color` and `background` — **Trigger:** L3 demo panels — **Deferrable** (done in L3; noted for F3 components)
+- [x] X12. `scripts/font-metrics.ts` added to read vertical metrics from WOFF2 files (Brotli-decompressed table stream), needed to compute the fallback overrides without a metrics dependency — **Trigger:** L4 fallback tuning — **Deferrable** (done in L4)
+- [x] X13. Code blocks set `font-variant-ligatures: none`, so `=>` isn't drawn as one arrow glyph — **Trigger:** L4 font specimen showed JetBrains Mono's ligatures — **Deferrable** (done in L4)
+- [ ] X14. The raw-value check (L5) must exempt `fonts.css`: `@font-face` descriptors (`size-adjust: 102.19%`, `font-weight: 100 900`) are font metadata, not design values — **Trigger:** L4 `fonts.css` — **Deferrable** (L5)
 
 ## Layer log
 
@@ -510,6 +599,7 @@ Anything unplanned. Never moved into the original checklist.
 | L1 | #1 | `pnpm typecheck` exit 0; `pnpm test` 22/22 pass (after X3/X4); `pnpm build` writes `dist/index.html`; mutation check (escaping removed → 5 tests fail) | O1, O3, O4, O5, X1, X3, X4 |
 | L2 | — | `pnpm typecheck` exit 0; `pnpm test` 48/48 pass (clamp math and endpoints, every token declared and shown, every block inside a declared layer, zoom reachability, heading order, no inline styles); `pnpm build` writes 2 pages + 8.3 KB `site.css`; headless Chrome screenshots at 320px, 375px, 1280px and 200% zoom (no horizontal scrolling; 4 spacing/visual fixes after the first round) | O6, O7, O8, O9, O10, O11, X6, X8, X9 |
 | L3 | — | `pnpm typecheck` exit 0; `pnpm test` 69/69 pass (conversion against sRGB primaries and the #767676 = 4.54:1 WCAG reference; all 8 palettes pass 35 pairs each; failing and out-of-gamut palettes are reported; a failing check throws, stopping the build); `site.css` 19.8 KB raw, 4.1 KB gzip; headless Chrome: color section at 1280px and 375px, and the whole page with the OS preferring light vs dark (page flips, panels keep their own theme) | O13, O14, O15, O16, X11 (O12 pending Q2) |
+| L4 | — | `pnpm typecheck` exit 0; `pnpm test` 76/76 pass (font files and budgets, license, only `fonts.css` names families, one-line meta switch, WOFF2 metrics read); sizes measured for six families before choosing; Chrome measurement: tuned fallback matches Geist's text box exactly (92 vs 92px; plain Arial 84px); Chrome network log: `/` downloads 1 font file (29.4 KB), `/design/` 2 (52.5 KB), italic never fetched when unused; both one-line switches demonstrated by temporary edit + rebuild; screenshot of the demo page in Geist | O17, O18, O19, X12, X13 |
 
 ## How it works
 
@@ -622,3 +712,32 @@ Why the demo panels restate `color` and `background`: an inherited `color` is
 already resolved on the parent, with the parent's theme and accent. A panel
 that switches `color-scheme` or `data-accent` has to re-read the variables
 itself, or it would show the page's text color on its own background.
+
+### Fonts (L4)
+1. **Files.** `public/fonts/` holds three WOFF2 files (Latin subset, variable
+   weight) and the OFL license. The build copies `public/` to `dist/`, so they're
+   served at `/fonts/…`.
+2. **Declare.** `fonts.css` has one `@font-face` per file: family (`Geist` or
+   `Geist Mono`), style (normal or italic), `font-weight: 100 900` (the variable
+   range), `font-display: swap`, and the Latin `unicode-range`. Declaring a face
+   downloads nothing; the browser fetches a file only when text on the page needs
+   that family and style.
+3. **Fallbacks.** Three more `@font-face` rules define `Geist Fallback` (from
+   local Arial / Arial Italic) and `Geist Mono Fallback` (from Courier New),
+   resized with `size-adjust` and given Geist's line metrics with
+   `ascent-override` / `descent-override`. The numbers come from
+   `scripts/font-metrics.ts` (Geist's hhea ascender 1.005em, descender 0.295em)
+   and a width measurement in Chrome (F1a-D17).
+4. **Roles.** `--font-sans: "Geist", "Geist Fallback", system-ui, sans-serif`,
+   and `--font-code` likewise; `--font-heading` and `--font-meta` point at
+   `--font-sans`. The browser walks the list: Geist if loaded, else the tuned
+   fallback, else the system font.
+5. **Preload.** `document()` puts a preload link for the upright file in every
+   `<head>`, so that download starts alongside the CSS instead of after it.
+
+`scripts/font-metrics.ts` reads a WOFF2 file without a font library: it parses
+the table directory (tags and lengths, with WOFF2's variable-length integers),
+Brotli-decompresses the table stream with `node:zlib`, and reads `unitsPerEm`
+from `head`, ascender/descender/line gap from `hhea`, and average width from
+`OS/2`. Those three tables are never transformed in WOFF2, so they can be read
+directly.

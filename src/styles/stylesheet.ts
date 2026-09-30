@@ -5,6 +5,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tokensCss } from "#src/styles/tokens-css.ts";
+import { colorsCss } from "#src/styles/colors-css.ts";
 import { demoCss } from "#src/styles/demo-css.ts";
 
 /**
@@ -24,6 +25,7 @@ export default async function stylesheet(): Promise<string> {
     `@layer ${LAYERS.join(", ")};\n`,
     await source("reset.css"),
     tokensCss(),
+    colorsCss(),
     await source("fonts.css"),
     await source("base.css"),
     demoCss(),

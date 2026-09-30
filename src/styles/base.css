@@ -6,6 +6,17 @@
     line-height: var(--leading-base);
     font-weight: var(--weight-regular);
     text-align: start;
+    color: var(--color-text);
+    background: var(--color-bg);
+  }
+
+  /* Links in running text stay underlined, so they never rely on color alone (PRD §7.3). */
+  a {
+    color: var(--color-accent);
+  }
+
+  a:hover {
+    color: var(--color-accent-hover);
   }
 
   h1,
@@ -80,9 +91,9 @@
     margin-block-start: var(--space-s);
   }
 
-  /* Outline, not box-shadow, so focus stays visible in forced-colors mode. Color arrives in L3. */
+  /* Outline, not box-shadow, so focus stays visible in forced-colors mode. */
   :focus-visible {
-    outline: var(--focus-width) solid currentColor;
+    outline: var(--focus-width) solid var(--color-focus-ring);
     outline-offset: var(--focus-offset);
   }
 }

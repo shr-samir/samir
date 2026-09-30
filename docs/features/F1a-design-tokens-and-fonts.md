@@ -25,7 +25,7 @@ site content yet.
 |---|---|---|
 | L1 Foundations | A tiny program that writes HTML files, with safe templates | done |
 | L2 Tokens | Sizes, spacing and motion as CSS variables; base text styles; demo page | done |
-| L3 Color | Light and dark palettes per accent, and a contrast check | planned |
+| L3 Color | Light and dark palettes per accent, and a contrast check | in review |
 | L4 Fonts | Chosen fonts, measured, self-hosted | planned |
 | L5 Raw-value check | Build fails if CSS skips the design system | planned |
 
@@ -203,6 +203,59 @@ them smoothly, instead of jumping at a breakpoint.
   (4, 8, 16px), the easing curve and per-size line heights are picks within the
   PRD's rules; change them in `tokens.ts` and everything follows.
 
+### L3 — Color and contrast check
+
+**Essence.** Colors are generated, not hand-picked. An accent is just a hue and
+a chroma (how colorful). Every role — text, backgrounds, borders, the five
+accent steps, status colors, focus ring — has a fixed lightness per theme, so
+each accent × theme palette falls out of a formula. Before the build writes any
+CSS, it converts every color to the light a screen actually emits and checks
+every pair that must stay readable against WCAG AA; one failing pair fails the
+build. In the CSS, each color is `light-dark(<light>, <dark>)`, so the page
+follows the OS theme on its own, and an accent is a `[data-accent]` block that
+redefines the same variable names.
+
+**What changed**
+- `src/styles/color.ts`: color math: OKLCH → linear sRGB, WCAG luminance and contrast, gamut test, and fitting a color into the gamut.
+- `src/styles/palette.ts`: the accents, the lightness of every role per theme, the list of pairs that must pass, and the check.
+- `src/styles/colors-css.ts`: writes the `--color-*` variables per accent; throws (failing the build) if any palette fails.
+- `src/styles/tokens.ts`: shadows now take their color from `--color-shadow`, which is transparent in dark mode.
+- `src/styles/base.css`: page text, background, links and focus ring use the semantic colors.
+- `src/pages/design.ts`, `src/styles/demo-css.ts`: a Color section with one panel per accent × theme, showing swatches, sample text, buttons and contrast ratios.
+
+**Questions asked**
+- *Which accent colors?* Not decided yet (Q2): four candidates are on the demo
+  page (blue, teal, violet, rust); the owner picks at the L3 gate.
+
+**Questions you might have**
+- *What is OKLCH, and why not hex?* OKLCH describes a color as lightness,
+  chroma (colorfulness) and hue, and its lightness matches how bright colors
+  *look*. With hex or HSL, a yellow and a blue at "50% lightness" look very
+  different in brightness; in OKLCH they look alike, which is what makes
+  "every role has a fixed lightness" work across hues.
+  → [fundamentals §13](../fundamentals.md#13-css-without-tailwind-design-tokens-and-cascade-layers)
+- *How does the theme switch without JavaScript?* `color-scheme: light dark` on
+  the page tells the browser both themes are supported; `light-dark(a, b)` then
+  picks `a` or `b` from the visitor's OS setting. The theme switcher (F3) will
+  set `color-scheme` to force one.
+- *How does the demo show dark and light side by side?* Each panel sets its own
+  `color-scheme` and `data-accent`. The variables are re-read inside the panel,
+  so it shows its own palette no matter what the page uses.
+- *What is "out of gamut"?* OKLCH can describe colors no ordinary (sRGB) screen
+  can show. The browser would quietly swap in a nearby color, so the contrast we
+  computed would no longer be true. So the build rejects such colors, and the
+  generator lowers an accent's chroma to what fits at each lightness (teal
+  asked for 0.10 and gets 0.084).
+- *Why do status colors ignore the accent?* So "danger" always looks like
+  danger. They're also always paired with text or an icon, never color alone.
+- *Why is the blue accent close to the "info" color?* Both are blue. It's
+  harmless because status always comes with a label, but if blue is chosen as the
+  default accent, "info" could shift toward cyan. (X10)
+- *What does the check actually compare?* 12 rules, each a foreground against
+  its backgrounds in every palette: text, secondary text, links, hovered links,
+  selected-state text, button text and status text must reach 4.5:1; control
+  borders and the focus ring 3:1. That's 35 pairs per palette, 280 in total.
+
 ## Problem statement
 Lay the foundation every later feature builds on. That means a working TypeScript 7
 setup, a minimal build that writes static pages, and the `html` escaping helper;
@@ -359,6 +412,22 @@ Each layer is one PR, adds standalone value, and is approved before the next.
 - **Confidence:** high
 - **Spike:** none
 
+### F1a-D15: Palettes are generated from hue + chroma, with fixed lightness per role
+- **Decision:** an accent is `{ hue, chroma }`; each role has a fixed OKLCH lightness per theme (e.g. light `text` 0.24, `accent` 0.50; dark `bg` 0.18, `accent` 0.76), and neutrals take the accent hue at low chroma.
+- **Why it fits:** OKLCH lightness tracks perceived brightness across hues, so a fixed lightness gives near-identical contrast for every accent. Adding or swapping an accent is one line, and the contrast check proves it. [verified: all 8 palettes pass, 35 pairs each]
+- **Alternative:** hand-pick every color of every palette — 8 × 21 values to keep consistent by eye.
+- **Would be wrong if:** a chosen hue needs per-role tweaks the formula can't express; then allow per-accent overrides.
+- **Confidence:** high
+- **Spike:** none
+
+### F1a-D16: Chroma is fitted into the sRGB gamut by the generator; the gamut check stays as a guard
+- **Decision:** an accent's chroma is a target; each generated color's chroma is lowered to 98% of the most an sRGB screen can show at its lightness and hue (binary search). `checkPalette` still fails any out-of-gamut color.
+- **Why it fits:** at low lightness, blues and teals run out of displayable chroma fast (the first run flagged 19 colors, e.g. blue at L 0.44 / C 0.15 needs a slightly negative red channel). Fitting keeps accents simple to define and every color honest about what screens show.
+- **Alternative:** hand-tune chroma per role and hue until the check passes — tedious, and brittle when an accent changes.
+- **Would be wrong if:** fitted colors look noticeably duller than intended; then pick a hue with more room at that lightness.
+- **Confidence:** high
+- **Spike:** none
+
 ## Edge cases
 - 200% zoom and larger user font size: rem-based clamps (D4). At 200% zoom the demo page reflows with no horizontal scrolling; body sizes double exactly, fluid headings reach 164–182% and double by 250–300% zoom (X6, accepted).
 - Out-of-gamut color: build fails (B4).
@@ -403,10 +472,10 @@ Frozen at approval. Never edited afterwards; only ticked.
 
 **L3 — Color and contrast check**
 - [ ] O12. OKLCH palettes for every accent × theme (hues chosen with the owner, Q2), with neutrals tinted by the accent and semantic token names as in §7.3.
-- [ ] O13. Theme switches via `color-scheme` + `light-dark()`, accent via `data-accent`.
-- [ ] O14. The contrast check requires every pair in every palette to meet 4.5:1 (text) or 3:1 (borders, focus, non-text). A failure names the palette, the pair and the ratio. The math is tested against known reference values.
-- [ ] O15. Any color outside the sRGB gamut fails the build.
-- [ ] O16. The demo page shows every palette side by side, with no JavaScript.
+- [x] O13. Theme switches via `color-scheme` + `light-dark()`, accent via `data-accent`.
+- [x] O14. The contrast check requires every pair in every palette to meet 4.5:1 (text) or 3:1 (borders, focus, non-text). A failure names the palette, the pair and the ratio. The math is tested against known reference values.
+- [x] O15. Any color outside the sRGB gamut fails the build.
+- [x] O16. The demo page shows every palette side by side, with no JavaScript.
 
 **L4 — Fonts**
 - [ ] O17. File sizes measured against the budget before choosing (Q1); the chosen Latin variable `.woff2` files are self-hosted with their licenses.
@@ -431,6 +500,8 @@ Anything unplanned. Never moved into the original checklist.
 - [ ] X7. Pages link `/site.css`, which doesn't load when `dist/*.html` is opened as a file; previewing needs a local server before the F1b dev server exists — **Trigger:** L2 screenshots needed a throwaway server — **Deferrable** (F1b)
 - [x] X8. Shared `document()` layout started early (F1a-D14) — **Trigger:** a second page needed the same `<head>` — **Deferrable** (done in L2)
 - [x] X9. O9 says headings use line height 1.2; h3 (`text-xl`) uses 1.3 and h4 (`text-lg`) 1.4, because those sizes also set lead paragraphs and the PRD says line height shrinks as size grows. h1/h2 use 1.2, the hero 1.1 — **Trigger:** L2 self-check against the frozen checklist — **Deferrable** (kept by the owner, 2026-09-30; O9 ticked on that basis)
+- [ ] X10. The blue accent (hue 255) sits close to the `info` status color (hue 245); harmless because status always has a label, but if blue is chosen, `info` could move toward cyan — **Trigger:** L3 demo page screenshots — **Deferrable**, decide with Q2
+- [x] X11. Inherited `color` is resolved on the parent, so a panel that changes `color-scheme` or `data-accent` still inherits the page's text color; demo panels restate `color` and `background` — **Trigger:** L3 demo panels — **Deferrable** (done in L3; noted for F3 components)
 
 ## Layer log
 
@@ -438,6 +509,7 @@ Anything unplanned. Never moved into the original checklist.
 |---|---|---|---|
 | L1 | #1 | `pnpm typecheck` exit 0; `pnpm test` 22/22 pass (after X3/X4); `pnpm build` writes `dist/index.html`; mutation check (escaping removed → 5 tests fail) | O1, O3, O4, O5, X1, X3, X4 |
 | L2 | — | `pnpm typecheck` exit 0; `pnpm test` 48/48 pass (clamp math and endpoints, every token declared and shown, every block inside a declared layer, zoom reachability, heading order, no inline styles); `pnpm build` writes 2 pages + 8.3 KB `site.css`; headless Chrome screenshots at 320px, 375px, 1280px and 200% zoom (no horizontal scrolling; 4 spacing/visual fixes after the first round) | O6, O7, O8, O9, O10, O11, X6, X8, X9 |
+| L3 | — | `pnpm typecheck` exit 0; `pnpm test` 69/69 pass (conversion against sRGB primaries and the #767676 = 4.54:1 WCAG reference; all 8 palettes pass 35 pairs each; failing and out-of-gamut palettes are reported; a failing check throws, stopping the build); `site.css` 19.8 KB raw, 4.1 KB gzip; headless Chrome: color section at 1280px and 375px, and the whole page with the OS preferring light vs dark (page flips, panels keep their own theme) | O13, O14, O15, O16, X11 (O12 pending Q2) |
 
 ## How it works
 
@@ -526,3 +598,27 @@ sample and one label per token. Its classes (`demo-text-xl`, `demo-space-m`, …
 are generated from the same arrays in `demo-css.ts`, so the page needs no inline
 styles. Tests check that every token appears on the page and every class it uses
 has a rule.
+
+### Colors (L3)
+1. **Palette.** `palette.ts` defines each accent as `{ hue, chroma }` and, per
+   theme, a lightness for every role. `buildPalette(accent, theme)` returns 21
+   OKLCH colors: neutrals at the accent hue with very low chroma, accent steps at
+   the accent's chroma, status colors at fixed hues. Every accent step and status
+   color goes through `fitToGamut()` (`color.ts`), which lowers chroma to what an
+   sRGB screen can show at that lightness.
+2. **Check.** `checkPalette()` converts each color to linear sRGB, rejects any
+   channel outside 0–1 (out of gamut), then computes WCAG contrast
+   (`(lighter + 0.05) / (darker + 0.05)` on relative luminance) for every pair in
+   `REQUIREMENTS`. `checkPalettes()` runs it for all accents × both themes.
+3. **CSS.** `colorsCss()` throws with the full list of failures if there are
+   any; `stylesheet()` calls it, so a failure stops `pnpm build`. Otherwise it
+   writes `:root { color-scheme: light dark; }` and one block per accent:
+   `--color-text: light-dark(oklch(24% …), oklch(94% …));` and so on. The first
+   accent's block also matches `:root`, making it the default.
+4. **Use.** `base.css` sets `body` text and background, links and the focus
+   ring from `--color-*`. Shadows read `--color-shadow`, transparent in dark.
+
+Why the demo panels restate `color` and `background`: an inherited `color` is
+already resolved on the parent, with the parent's theme and accent. A panel
+that switches `color-scheme` or `data-accent` has to re-read the variables
+itself, or it would show the page's text color on its own background.

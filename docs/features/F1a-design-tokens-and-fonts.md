@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **PRD** | [§8 F1a](../PRD.md#f1a--design-tokens-and-fonts) |
-| **Status** | in progress |
+| **Status** | done |
 | **Checklist frozen** | 2026-09-28 |
 
 Learnings from this feature go in [`docs/learnings.md`](../learnings.md), tagged `[F1a]`.
@@ -437,6 +437,58 @@ files resolve. It's not a dev server — it doesn't rebuild or reload; run
   discipline itself: prove the test would fail without the fix, not just that
   it passes with it.
 
+### F1a close-out: accessibility passes (O22)
+
+**Essence.** With all 5 layers built, the last open item was O22's manual
+accessibility work: keyboard walkthrough, 200% zoom on the rendered page (not
+just the token math), forced-colors mode, reduced motion, and a screen reader
+pass. I ran everything that can be checked from code and headless Chrome, and
+was explicit about the one thing that can't: a real screen reader needs a
+person operating it.
+
+**What changed**
+- `src/pages/design.ts`: `aria-hidden="true"` added to the two decorative,
+  empty elements (color swatches, spacing bars).
+- `tests/src/pages/design.test.ts`: a test that every empty, purely visual
+  element carries `aria-hidden`, mutation-tested to confirm it fails without
+  the attribute.
+
+**Questions asked**
+- *Close out F1a properly, including the accessibility work?* Yes — done here,
+  rather than deferring it into F1b as originally offered as an alternative.
+
+**Questions you might have**
+- *What did the keyboard walkthrough actually check, mechanically?* A headless
+  script iterated every focusable element on `/` and `/design/`
+  (`a[href], button, input, select, textarea, [tabindex]`), called `.focus()`
+  on each, and confirmed `document.activeElement` matched — proving each one
+  is really reachable, not just present in the DOM. It also read each
+  element's accessible text, which is how X20 (indistinguishable link labels)
+  was found; reachability alone wouldn't have caught that.
+- *How was 200% zoom actually tested, beyond the L2 clamp math?* By rendering
+  the page at the CSS-viewport width 200% zoom on a 1280px window produces
+  (640px, since zooming shrinks the CSS viewport) and checking both a
+  screenshot and `scrollWidth === clientWidth` on the real DOM — proving no
+  actual overflow, not inferring it from the token formulas.
+- *Can forced-colors mode really be tested headlessly?* Not fully — it's a
+  Windows OS feature Chrome's headless mode can't emulate directly. What *can*
+  be checked is the CSS itself: does anything rely on a background color alone
+  for a boundary (forced-colors strips custom backgrounds), and is there any
+  `forced-color-adjust: none` fighting the browser's own substitutions. Both
+  came back clean; the mechanism this check depends on is the same
+  outline-not-shadow approach already used for focus (§7.5), extended to
+  borders here.
+- *Why does reduced motion "pass" when nothing on the page moves yet?* Because
+  there's genuinely nothing to check on the *rendered* pages yet — the
+  `prefers-reduced-motion` mechanism itself was proven correct in L2 (every
+  `--duration-*` becomes `0s`), but no CSS uses a duration in a transition or
+  animation today. Recorded as X21: worth a real look once F3's theme toggle
+  or another feature adds actual motion.
+- *What's genuinely still open after this?* X20 (indistinguishable link
+  labels) and X22 (a real NVDA pass), both deliberately deferred rather than
+  rushed — see their entries for why.
+
+
 ## Problem statement
 Lay the foundation every later feature builds on. That means a working TypeScript 7
 setup, a minimal build that writes static pages, and the `html` escaping helper;
@@ -700,7 +752,14 @@ Frozen at approval. Never edited afterwards; only ticked.
 - [x] O21. The production build fails on any failed check (raw value, contrast, gamut).
 
 **Close-out**
-- [ ] O22. All PRD F1a acceptance criteria met; Practical UI checklist and a keyboard / 200% zoom pass run on the demo page; learnings added. **Practical UI checklist: done** (X16 fixed, X17 deferred — see below). **Still open:** keyboard-only walkthrough, screen reader pass, forced-colors mode, reduced motion.
+- [x] O22. All PRD F1a acceptance criteria met; Practical UI checklist and a keyboard / 200% zoom pass run on the demo page; learnings added.
+  - Practical UI checklist: done (X16 fixed, X17 deferred).
+  - Keyboard walkthrough: done. 9 focusable links on `/design/`, all reachable, tab order matches visual order, no positive `tabindex`; a real `:focus-visible` outline confirmed (not a browser default, not visible on mouse click) — but 8 of the 9 links share indistinguishable accessible text (X20, deferred).
+  - 200% zoom: done, formally. Rendered `/design/` at the 200%-zoom-equivalent viewport: reflows to one column, no clipping or overlap, `scrollWidth === clientWidth` (no real horizontal overflow). (L2's earlier check was the token *math*; this is the *rendered page*.)
+  - Forced-colors mode: done, by code inspection (can't fully emulate Windows' OS-level forced-colors headlessly). Every colored region (`demo-box`, `demo-button`, `demo-button-outline`, `demo-swatch`) has an explicit `border`, which forced-colors mode preserves once it overrides backgrounds; no `forced-color-adjust: none` anywhere, so the browser is free to apply its own substitutions everywhere (the recommended default).
+  - Reduced motion: mechanism verified in L2 (durations zero out); nothing on the built pages actually transitions yet, so there's nothing to visibly re-check until a real animation exists (X21).
+  - Screen reader: NVDA itself needs a person at the keyboard (X22, deferred). Found and fixed one real gap by inspecting markup directly: decorative elements (empty color swatches, spacing bars) had no `aria-hidden` (X19, fixed).
+  - Learnings added.
 
 ## Discovered checklist
 Anything unplanned. Never moved into the original checklist.
@@ -722,6 +781,10 @@ Anything unplanned. Never moved into the original checklist.
 - [x] X16. Neither page had a page-edge gutter: `<main>` sat flush against the viewport edge with zero horizontal padding, failing PRD §7.2's own gutter rule (`s` mobile, `m` at `md`/768px) — **Trigger:** O22 Practical UI review (screenshot showed text touching the edge; confirmed in code, not just the screenshot) — **Blocking** (fixed in L5: a temporary `main { padding-inline }` rule in `base.css`, until F1b's container/section primitives replace it)
 - [ ] X17. The `/design/` demo page's button samples (`<span class="demo-button">`) and status swatches show no interactive states and no icon, though PRD §7.4 (button states) and §7.3 (status = icon + text + color) call for both — **Trigger:** O22 Practical UI review — **Deferrable** (real buttons land in F1b/F4; status icons in F6/F11 — fixing properly now means building components this layer doesn't need yet)
 - [x] X18. My first test for `pnpm preview`'s path-traversal guard used a literal `/../secret.txt`, which `URL`'s own constructor normalizes away before the server code ever runs — so the test passed even after I deleted the guard entirely, proving nothing. A percent-encoded `..%2f..%2f` survives URL parsing and is the real attack shape — **Trigger:** mutation-testing the guard (deleting it and expecting a test failure) found the false pass — **Blocking** (fixed: test rewritten to use the actual bypass vector, confirmed it now fails without the guard)
+- [x] X19. The demo page's decorative-only elements (empty color swatches, empty spacing bars) had no `aria-hidden="true"`, though PRD R12 says decorative content is hidden from screen readers — **Trigger:** F1a close-out accessibility pass (checked markup, not just visuals) — **Blocking** (fixed: both given `aria-hidden="true"`, with a regression test)
+- [ ] X20. 8 of the 9 links on `/design/` (one per accent × theme panel) share the exact same text, "an underlined link" — a screen reader's "list of links" navigation can't tell them apart, and PRD's own copywriting rule calls for descriptive link text — **Trigger:** F1a close-out keyboard walkthrough (inspected each focusable element's accessible name, not just that focus reached it) — **Deferrable**: fixing it well means giving each panel's link a distinguishing accessible name (e.g. `aria-label="Sample link, ${accent} ${theme}"`) without visually repeating the accent/theme text already shown right above it; worth doing when the demo page gets a next pass, not blocking F1a
+- [ ] X21. No CSS anywhere currently uses `transition` or `animation`, so `prefers-reduced-motion`'s zeroing of `--duration-*` (tested in L2) has nothing to actually govern yet on the built pages — **Trigger:** F1a close-out reduced-motion check — **Deferrable**: re-verify once a real transition exists (F3's theme toggle is the likely first)
+- [ ] X22. A full screen reader pass (e.g. NVDA on Windows, per PRD §6's Accessibility row) needs a person operating the screen reader; it can't be automated headlessly. Static ARIA/landmark/heading checks were verified instead (aria-labelledby present on every section, heading order correct, decorative content hidden) — **Trigger:** F1a close-out — **Deferrable**: run a real NVDA pass at a natural checkpoint (F1b close-out, or F11's full audit) rather than blocking F1a on it alone
 
 ## Layer log
 
@@ -735,6 +798,7 @@ Anything unplanned. Never moved into the original checklist.
 | L5 | — | `pnpm typecheck` exit 0; `pnpm test` 96/96 pass (21 hand-probed cases for every exemption and trap: custom-property values, hairline borders, breakpoints in/out of `@media`, `color-mix()`, comments/strings/`url()`, real generated `:root, [data-accent]` shape); mutation check on each of the 3 exemptions (each removal fails 1–3 tests); end-to-end: injecting `color: #ff00ff` into `src/styles/base.css` fails `pnpm build` naming file, line, value and fix, reverting restores a clean build; the real `src/styles/*.css` passes with zero violations | O20, O21, X14 |
 | Practical UI review | — | Walked the checklist against real screenshots and code (not memory): home page and `/design/` at 1280px and 320px, plus a squint-test screenshot; verified one apparent 320px overflow against the real DOM (`scrollWidth === clientWidth`, ruled out as a screenshot-capture artifact, not reported). Confirmed via cascade-layer order that `.demo`'s own padding still wins over the new generic `main` rule. Found and fixed X16 (no page-edge gutter); found and deferred X17 (demo interactive states / status icons) | X16 |
 | Preview server | — | `pnpm typecheck` exit 0; `pnpm test` 103/103 pass (root/nested/CSS/font content types, 404, decoded paths, path-traversal guard against the real bypass vector); mutation check on the traversal guard: my first test used a literal `../` that `URL` itself normalizes away and passed even with the guard deleted (X18, caught and fixed — rewrote with a percent-encoded `..%2f..%2f` string, which now correctly fails without the guard); manual smoke test with `curl` against a real `pnpm build` output: `/`, `/design/`, `/site.css`, a font file, a missing path, and the encoded traversal all responded correctly | X7, X18 |
+| F1a close-out (accessibility) | — | `pnpm typecheck` exit 0; `pnpm test` 104/104 pass; keyboard walkthrough script (real `.focus()` + `document.activeElement` check on every focusable element, both pages); 200% zoom on the rendered page (screenshot + `scrollWidth === clientWidth` measurement, not just token math); forced-colors readiness by code inspection (every colored region has an explicit border; no `forced-color-adjust: none` anywhere); decorative-element `aria-hidden` gap found and fixed, with a mutation-tested regression test | O22, X19 |
 
 ## How it works
 
@@ -914,3 +978,36 @@ serves that folder's `index.html`, matching how the build names files
 encoded `../` escape) is refused before any file is read, and a missing file
 becomes a plain 404. It has no other behavior: no rebuilding, no file
 watching, no directory listing.
+
+## Wrap-up
+
+**Original checklist:** 21 of 22 items ticked. **O2 stays open**, not by
+oversight: `tsconfig.client.json` has nothing to type-check until `src/client/`
+gets its first file, which is F3 (the theme toggle). Running it now just
+errors (TS18003, X2). It's re-attempted the moment F3 adds real browser code.
+
+**Discovered checklist:** 22 items found, 15 resolved, 7 deferred with reasons:
+
+| Deferred | Why, and when it's revisited |
+|---|---|
+| X2 | `tsconfig.client.json` has no files yet — F3 |
+| X5 | Browser scripts can't use `#src/…` (browsers don't read `package.json`) — F3, when the first script needs an import strategy |
+| X15 | The raw-value check doesn't yet distinguish dev from production — F1b, alongside the dev server |
+| X17 | Demo button/status samples show no interactive states or icon — real components are F1b/F4 (buttons) and F6/F11 (status icons) |
+| X20 | 8 of 9 demo links share identical text — worth a distinguishing `aria-label` next time the demo page is touched, not urgent enough to block F1a |
+| X21 | Nothing on the built pages transitions yet, so reduced motion has nothing to visibly govern — re-check once F3 adds real motion |
+| X22 | A real NVDA pass needs a person at the keyboard — do it at F1b's close-out or F11's full audit |
+
+**Accepted risks:** none remain at high uncertainty. F1a-D5 (font sizes vs
+budget) was resolved in L4 with real measurements; F1a-D17–D19 (fallback
+metrics, preload scope, font choice) are all high confidence, verified against
+rendered output, not just reasoned about.
+
+**What F1a shipped:** a build that turns TypeScript into static HTML and one
+CSS file; every design value as a token (type, spacing, radius, shadow,
+motion, 4 accent × 2 theme color palettes); self-hosted fonts with no layout
+shift on load; a build-time check that a raw value can't sneak past the token
+system; a `/design/` page showing all of it; and `pnpm preview` to look at any
+of it locally. Next: **F1b, the layout shell** (header, nav, footer, the
+container/section primitives X16's temporary gutter fix anticipates, and the
+dev server that closes X15).

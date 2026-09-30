@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Owner** | Samir Shrestha |
-| **Status** | Draft v0.15 |
+| **Status** | Draft v0.16 |
 | **Last updated** | 2026-09-30 |
 | **Reference** | [jasoncameron.dev](https://jasoncameron.dev/) — a more refined take on it |
 
@@ -379,7 +379,7 @@ IDs are stable; the **Order** column is the build sequence.
 
 | Order | ID | Feature | Priority | Status |
 |---|---|---|---|---|
-| 1 | F1a | Design tokens and fonts | P0 | planned |
+| 1 | F1a | Design tokens and fonts | P0 | done |
 | 2 | F1b | Layout shell | P0 | planned |
 | 3 | F12 | Deploy pipeline and performance budgets | P0 | planned |
 | 4 | F2 | Site config and feature flags | P0 | planned |
@@ -576,3 +576,4 @@ and a row in §8 when promoted; dependencies still follow D0.
 | 2026-09-28 | v0.13 — Cleanup: removed resolved questions, closed risks, superseded decisions, and version asides; condensed the change log. Removed the local commit-message hook: PRs are squash-merged, so F12 checks PR titles in CI instead. Problem statement reworded to a plain, casual tone. |
 | 2026-09-28 | v0.14 — F1a spike S1: TypeScript 7 setup verified (D6 now high confidence, R-7 closed). Added `@types/node` as a second dev-only dependency (D0). Node requirement tightened to ≥ 24.12, where type stripping is stable. Absolute imports via Node subpath imports; tests moved to a mirrored `tests/` folder. Docs layered: `docs/README.md` map, `docs/fundamentals.md`, and an Understanding section in every feature doc. |
 | 2026-09-30 | v0.15 — Q1 resolved in F1a L4: Geist + Geist Mono, self-hosted (Inter measured 100.1 KB for upright + italic, over the 100 KB budget); `meta` stays on the sans font so the mono file loads only on pages with code. |
+| 2026-09-30 | v0.16 — F1a done (all 5 layers: tokens, color, fonts, raw-value check, plus a `pnpm preview` server and an accessibility close-out). Q2 resolved: violet default accent, all 4 selectable. Next: F1b (layout shell). |

@@ -50,6 +50,16 @@ test("every demo class used on the page is defined in the demo CSS", () => {
   }
 });
 
+test("every empty div/span (purely visual, no text content) is hidden from screen readers", () => {
+  // A decorative element (a color swatch, a spacing bar) carries no information a screen reader
+  // could usefully announce; its meaning is already given by an adjacent text label (PRD R12).
+  const emptyElements = [...body.matchAll(/<(div|span)\b([^>]*)><\/\1>/g)];
+  assert.ok(emptyElements.length > 0, "expected to find the spacing bars and color swatches");
+  for (const [, , attrs] of emptyElements) {
+    assert.match(attrs!, /\baria-hidden="true"/, `empty element missing aria-hidden: <${attrs}>`);
+  }
+});
+
 test("has one h1, headings in order, and no inline styles", () => {
   assert.equal(body.match(/<h1[\s>]/g)?.length, 1);
   const levels = [...body.matchAll(/<h([1-6])[\s>]/g)].map((m) => Number(m[1]));

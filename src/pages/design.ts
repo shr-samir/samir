@@ -39,7 +39,7 @@ function paletteCard(accent: Accent, theme: Theme) {
             <p class="demo-actions"><span class="demo-button">Primary</span><span class="demo-button-outline">Secondary</span></p>
             <p><span class="demo-status-success">Success</span> · <span class="demo-status-warning">Warning</span> · <span class="demo-status-danger">Danger</span> · <span class="demo-status-info">Info</span></p>
             <ul class="demo-swatches">
-              ${SWATCH_ROLES.map((role) => html`<li><span class="demo-swatch demo-swatch-${role}"></span><code>${role}</code></li>`)}
+              ${SWATCH_ROLES.map((role) => html`<li><span class="demo-swatch demo-swatch-${role}" aria-hidden="true"></span><code>${role}</code></li>`)}
             </ul>
             <p class="demo-meta">Contrast: text ${ratio(accent, theme, "text", "bg")} · secondary ${ratio(accent, theme, "text-secondary", "bg")} · link ${ratio(accent, theme, "accent", "bg")} · button text ${ratio(accent, theme, "on-accent", "accent")}</p>
           </li>`;
@@ -91,7 +91,7 @@ function spacingSection() {
         <ul class="demo-list">
           ${spacing.map(
             (s) => html`<li>
-            <div class="demo-bar demo-space-${s.name}"></div>
+            <div class="demo-bar demo-space-${s.name}" aria-hidden="true"></div>
             <p class="demo-meta"><code>--space-${s.name}</code> · ${s.px}px · ${s.use}</p>
           </li>`,
           )}

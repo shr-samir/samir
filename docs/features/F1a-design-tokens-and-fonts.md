@@ -27,7 +27,7 @@ site content yet.
 | L2 Tokens | Sizes, spacing and motion as CSS variables; base text styles; demo page | done |
 | L3 Color | Light and dark palettes per accent, and a contrast check | in review |
 | L4 Fonts | Chosen fonts, measured, self-hosted | done |
-| L5 Raw-value check | Build fails if CSS skips the design system | planned |
+| L5 Raw-value check | Build fails if CSS skips the design system | in review |
 
 ### L1 — Foundations
 
@@ -318,6 +318,125 @@ nothing jumps when Geist arrives.
   name in `--font-sans`. Re-run `node scripts/font-metrics.ts` on the new file
   and re-measure the width ratio to update the fallback values.
 
+### L5 — Raw-value check
+
+**Essence.** R1 says every visual value must come from a token, but nothing
+stopped someone from writing `margin: 16px` by hand instead of
+`margin: var(--space-s)`. This layer adds a script that scans every hand-written
+CSS file for raw lengths, colors and durations, and fails the build if it finds
+one, naming the file, line, value and which kind of token to use instead. It
+knows about the handful of legitimate exceptions the PRD lists (§7.2
+breakpoints, hairline borders, `0`/`100%`/`1fr`/`65ch`) and nothing else.
+
+**What changed**
+- `scripts/check-raw-values.ts`: the scanner (`checkCss`, `checkRawValues`, `styleFiles`).
+- `scripts/build.ts`: runs the check on `src/styles/` before writing `site.css`; any violation fails the build with the full list.
+
+**Questions asked**
+- None yet for this layer — I chose the scope (hand-written CSS only, not generated output) and ran the check against every real file before writing tests.
+
+**Questions you might have**
+- *Why not check the generated CSS (`tokens-css.ts`, `colors-css.ts`,
+  `demo-css.ts`) too?* That code *is* the token source, or reads tokens
+  exclusively by construction — `tokens-css.ts` literally writes
+  `--text-xl: clamp(...)`, a raw value, because defining that value is its job.
+  Checking its output would mean re-approving every token the moment after
+  generating it.
+- *Why does `fonts.css` get skipped (X14)?* `@font-face` descriptors like
+  `size-adjust: 102.19%` and `font-weight: 100 900` describe a font file's own
+  metrics, not a design decision like spacing or color. There's no token for
+  "how much this specific font differs from Arial."
+- *Why a hand-rolled scanner instead of a CSS parser or Stylelint?* The CSS
+  here is small (about 10 files) and hand-written by us, so the shapes to
+  handle are known and few; a real parser (or a dependency, D0) would be
+  overkill for catching "a number followed by px outside a token."
+- *What happens to a custom property's own value, like
+  `--space-2xl: 80px` in the generated tokens?* Exempt — the point is to stop
+  *consumers* of tokens from writing raw values (`margin: 80px`), not to police
+  the token definitions themselves.
+- *Does this run in development too?* Yes, currently the same in both: R10/D1's
+  planned split (dev reports, doesn't block; production blocks) hasn't been
+  built yet, since there's no dev server or "development mode" distinction
+  before F1b. Tracked as X15.
+- *What if the check has a false positive on legitimate CSS later (icons,
+  gradients, etc.)?* Extend `ALLOWED_VALUES` or a new exemption function in
+  `check-raw-values.ts`, with a test proving it doesn't also let real violations
+  through (as D8 anticipated).
+
+### Practical UI review (part of O22, before the F1a close-out)
+
+**Essence.** Before calling F1a done, I ran the Practical UI checklist against
+real screenshots and code, not from memory: the home page and `/design/` at
+desktop and mobile widths, plus a squint-test shot. One apparent bug (text
+seeming to overflow at 320px) turned out to be a screenshot-capture artifact,
+not a real one — checked against the actual DOM (`scrollWidth === clientWidth`)
+before reporting it, which is the discipline this workflow asks for: prove,
+don't assert.
+
+**What changed**
+- `src/styles/base.css`: added a temporary `main { padding-inline: var(--space-s) }`
+  rule (→ `var(--space-m)` at 768px), so every page has the gutter PRD §7.2
+  requires. It's temporary: F1b's container/section primitives will replace it.
+
+**Questions asked**
+- None yet; this was a review I ran on my own initiative before the L5 commit,
+  per PRD §8's F1a acceptance criteria and the workflow's Practical UI gate.
+
+**Questions you might have**
+- *Why didn't `/design/` have this bug too?* It did have padding, but from its
+  own `.demo` class, not from anything the home page could reuse — the two
+  pages had inconsistent, page-specific fixes instead of one shared rule.
+- *Why is the fix in `base.css` and not a proper `.container` class?* PRD's
+  project structure puts container/section/stack primitives in F1b (layout
+  shell), which doesn't exist yet. A generic `main { padding-inline }` rule
+  gets every page unstuck now without inventing F1b's system early.
+- *How do I know `.demo`'s own padding still wins, instead of both padding
+  rules adding up?* Cascade layers, not specificity: `components` (where
+  `.demo` lives) comes after `base` (where the new `main` rule lives) in
+  `stylesheet.ts`'s `LAYERS` order, so `.demo`'s padding replaces the generic
+  rule rather than stacking with it. Confirmed by screenshot: `/design/` looks
+  unchanged after the fix.
+- *What about the button and status-icon findings (X17)?* Deferred on purpose:
+  the demo page shows what tokens exist, not real components. Building
+  hover/focus states for a `<span>` label, or icon markup for a status swatch,
+  means building real buttons and status UI early — that's F1b/F4 and F6/F11's
+  job, not a token-demo's.
+
+### Preview server (closing X7)
+
+**Essence.** Until now, seeing the site meant `npx serve dist` (a temporary
+download each time) or my own throwaway screenshot server. `pnpm preview`
+replaces both: a small script using only `node:http`, serving whatever
+`pnpm build` last produced, with correct content types so `/site.css` and font
+files resolve. It's not a dev server — it doesn't rebuild or reload; run
+`pnpm build` again and refresh the browser. That part is F1b (D7).
+
+**What changed**
+- `scripts/preview.ts`: the static file server.
+- `package.json`: `pnpm preview`.
+
+**Questions asked**
+- *Can you add a preview command?* Yes — done here, zero dependencies,
+  `node:http` only, same as the rest of the build tooling.
+
+**Questions you might have**
+- *Why doesn't it rebuild or reload on save?* That's the dev server (F1b, D7):
+  a file watcher plus a message telling the browser to reload. This script only
+  serves files; it doesn't watch anything.
+- *Is it safe to expose, even briefly?* It refuses any request whose resolved
+  path lands outside `dist/` (a `../` escape), and only serves files that
+  exist. It has no other features — no directory listing, no write endpoints —
+  so there's little surface to worry about for a local preview.
+- *What port, and can I change it?* 4173, an arbitrary unregistered port with
+  no special meaning. It's a constant in `preview.ts`; there's no flag yet,
+  since nothing has needed one.
+- *A mutation test almost missed a real bug here — what happened?* See the
+  learnings entry below; a naive path-traversal test used an attack string
+  that Node's own `URL` parser had already neutralized before my code ran, so
+  deleting the guard didn't fail the test. Caught by the mutation-testing
+  discipline itself: prove the test would fail without the fix, not just that
+  it passes with it.
+
 ## Problem statement
 Lay the foundation every later feature builds on. That means a working TypeScript 7
 setup, a minimal build that writes static pages, and the `html` escaping helper;
@@ -514,6 +633,14 @@ Each layer is one PR, adds standalone value, and is approved before the next.
 - **Confidence:** high
 - **Spike:** none
 
+### F1a-D20: Raw-value check scope is hand-written `.css` under `src/styles/`, excluding `fonts.css`
+- **Decision:** `styleFiles()` lists every `*.css` in `src/styles/` except `fonts.css`; generated CSS (from `.ts` modules) is never scanned, because it *is* the token source or reads tokens exclusively by construction.
+- **Why it fits:** the goal (R1) is stopping a *consumer* of tokens from writing a raw value; the generator's job is to emit the actual numbers once, in one place. Scanning its output would fight the design instead of enforcing it.
+- **Alternative:** scan everything, with an allowlist of generated files growing forever — brittle as more generated CSS modules are added (colors-css, demo-css already exist).
+- **Would be wrong if:** a hand-written `.css` file starts importing raw values through a build-time templating trick that isn't a `.ts` module; not currently possible in this build.
+- **Confidence:** high
+- **Spike:** none
+
 ## Edge cases
 - 200% zoom and larger user font size: rem-based clamps (D4). At 200% zoom the demo page reflows with no horizontal scrolling; body sizes double exactly, fluid headings reach 164–182% and double by 250–300% zoom (X6, accepted).
 - Out-of-gamut color: build fails (B4).
@@ -569,11 +696,11 @@ Frozen at approval. Never edited afterwards; only ticked.
 - [x] O19. Metric-tuned fallback fonts (`size-adjust`, and the override descriptors where supported).
 
 **L5 — Raw-value check**
-- [ ] O20. The check flags raw lengths, colors and durations outside the token source. It allows the allowlist, and breakpoints only inside `@media`/`@container` conditions, and ignores comments, strings, `url()` and custom property names. Tests cover each case.
-- [ ] O21. The production build fails on any failed check (raw value, contrast, gamut).
+- [x] O20. The check flags raw lengths, colors and durations outside the token source. It allows the allowlist, and breakpoints only inside `@media`/`@container` conditions, and ignores comments, strings, `url()` and custom property names. Tests cover each case.
+- [x] O21. The production build fails on any failed check (raw value, contrast, gamut).
 
 **Close-out**
-- [ ] O22. All PRD F1a acceptance criteria met; Practical UI checklist and a keyboard / 200% zoom pass run on the demo page; learnings added.
+- [ ] O22. All PRD F1a acceptance criteria met; Practical UI checklist and a keyboard / 200% zoom pass run on the demo page; learnings added. **Practical UI checklist: done** (X16 fixed, X17 deferred — see below). **Still open:** keyboard-only walkthrough, screen reader pass, forced-colors mode, reduced motion.
 
 ## Discovered checklist
 Anything unplanned. Never moved into the original checklist.
@@ -583,14 +710,18 @@ Anything unplanned. Never moved into the original checklist.
 - [x] X4. All tests moved to `tests/`, mirroring the app's folders; the build no longer needs to skip test files in `src/pages/` — **Trigger:** owner request after L1 was built (F1a-D11) — **Deferrable** (done in L1)
 - [ ] X5. Browser scripts can't use `#src/…` (browsers don't read `package.json`, and `tsc` rewrites only relative `.ts` imports); choose relative imports or an import map when the first browser script lands — **Trigger:** X3 — **Deferrable** (F3)
 - [x] X6. Fluid headings grow less than 2× at exactly 200% zoom on wide windows (`text-4xl`: 164% at a 1280px window), because zoom shrinks the CSS viewport and the vw part with it. They reach 200% by 250–300% zoom; body sizes (`sm`, `base`, `prose`) double exactly. Tests enforce that 200% is reachable within the browser's 500% zoom (max ≤ 2.5 × min) — **Trigger:** L2 zoom model check of D4 — **Deferrable** (accepted by the owner, 2026-09-30)
-- [ ] X7. Pages link `/site.css`, which doesn't load when `dist/*.html` is opened as a file; previewing needs a local server before the F1b dev server exists — **Trigger:** L2 screenshots needed a throwaway server — **Deferrable** (F1b)
+- [x] X7. Pages link `/site.css`, which doesn't load when `dist/*.html` is opened as a file; previewing needs a local server before the F1b dev server exists — **Trigger:** L2 screenshots needed a throwaway server — **Deferrable** (closed in L5: `pnpm preview`, a plain `node:http` static file server, no dependency, no rebuild/reload — F1b's dev server replaces it)
 - [x] X8. Shared `document()` layout started early (F1a-D14) — **Trigger:** a second page needed the same `<head>` — **Deferrable** (done in L2)
 - [x] X9. O9 says headings use line height 1.2; h3 (`text-xl`) uses 1.3 and h4 (`text-lg`) 1.4, because those sizes also set lead paragraphs and the PRD says line height shrinks as size grows. h1/h2 use 1.2, the hero 1.1 — **Trigger:** L2 self-check against the frozen checklist — **Deferrable** (kept by the owner, 2026-09-30; O9 ticked on that basis)
 - [x] X10. The blue accent (hue 255) sits close to the `info` status color (hue 245); harmless because status always has a label, but if blue is chosen as default, `info` could move toward cyan — **Trigger:** L3 demo page screenshots — **Deferrable** (moot: violet is the default, 2026-09-30; still worth a look if blue is ever picked as default)
 - [x] X11. Inherited `color` is resolved on the parent, so a panel that changes `color-scheme` or `data-accent` still inherits the page's text color; demo panels restate `color` and `background` — **Trigger:** L3 demo panels — **Deferrable** (done in L3; noted for F3 components)
 - [x] X12. `scripts/font-metrics.ts` added to read vertical metrics from WOFF2 files (Brotli-decompressed table stream), needed to compute the fallback overrides without a metrics dependency — **Trigger:** L4 fallback tuning — **Deferrable** (done in L4)
 - [x] X13. Code blocks set `font-variant-ligatures: none`, so `=>` isn't drawn as one arrow glyph — **Trigger:** L4 font specimen showed JetBrains Mono's ligatures — **Deferrable** (done in L4)
-- [ ] X14. The raw-value check (L5) must exempt `fonts.css`: `@font-face` descriptors (`size-adjust: 102.19%`, `font-weight: 100 900`) are font metadata, not design values — **Trigger:** L4 `fonts.css` — **Deferrable** (L5)
+- [x] X14. The raw-value check (L5) must exempt `fonts.css`: `@font-face` descriptors (`size-adjust: 102.19%`, `font-weight: 100 900`) are font metadata, not design values — **Trigger:** L4 `fonts.css` — **Deferrable** (done in L5: `styleFiles()` excludes it by name)
+- [ ] X15. The raw-value check fails the build the same way in development and production; the PRD's planned split (dev reports without blocking, production blocks) needs a dev-server "mode" that doesn't exist before F1b — **Trigger:** L5, writing `build.ts`'s check — **Deferrable** (F1b, alongside the dev server)
+- [x] X16. Neither page had a page-edge gutter: `<main>` sat flush against the viewport edge with zero horizontal padding, failing PRD §7.2's own gutter rule (`s` mobile, `m` at `md`/768px) — **Trigger:** O22 Practical UI review (screenshot showed text touching the edge; confirmed in code, not just the screenshot) — **Blocking** (fixed in L5: a temporary `main { padding-inline }` rule in `base.css`, until F1b's container/section primitives replace it)
+- [ ] X17. The `/design/` demo page's button samples (`<span class="demo-button">`) and status swatches show no interactive states and no icon, though PRD §7.4 (button states) and §7.3 (status = icon + text + color) call for both — **Trigger:** O22 Practical UI review — **Deferrable** (real buttons land in F1b/F4; status icons in F6/F11 — fixing properly now means building components this layer doesn't need yet)
+- [x] X18. My first test for `pnpm preview`'s path-traversal guard used a literal `/../secret.txt`, which `URL`'s own constructor normalizes away before the server code ever runs — so the test passed even after I deleted the guard entirely, proving nothing. A percent-encoded `..%2f..%2f` survives URL parsing and is the real attack shape — **Trigger:** mutation-testing the guard (deleting it and expecting a test failure) found the false pass — **Blocking** (fixed: test rewritten to use the actual bypass vector, confirmed it now fails without the guard)
 
 ## Layer log
 
@@ -599,8 +730,11 @@ Anything unplanned. Never moved into the original checklist.
 | L1 | #1 | `pnpm typecheck` exit 0; `pnpm test` 22/22 pass (after X3/X4); `pnpm build` writes `dist/index.html`; mutation check (escaping removed → 5 tests fail) | O1, O3, O4, O5, X1, X3, X4 |
 | L2 | — | `pnpm typecheck` exit 0; `pnpm test` 48/48 pass (clamp math and endpoints, every token declared and shown, every block inside a declared layer, zoom reachability, heading order, no inline styles); `pnpm build` writes 2 pages + 8.3 KB `site.css`; headless Chrome screenshots at 320px, 375px, 1280px and 200% zoom (no horizontal scrolling; 4 spacing/visual fixes after the first round) | O6, O7, O8, O9, O10, O11, X6, X8, X9 |
 | L3 | — | `pnpm typecheck` exit 0; `pnpm test` 69/69 pass (conversion against sRGB primaries and the #767676 = 4.54:1 WCAG reference; all 8 palettes pass 35 pairs each; failing and out-of-gamut palettes are reported; a failing check throws, stopping the build); `site.css` 19.8 KB raw, 4.1 KB gzip; headless Chrome: color section at 1280px and 375px, and the whole page with the OS preferring light vs dark (page flips, panels keep their own theme) | O13, O14, O15, O16, X11 (O12 pending Q2) |
-| L4 | — | `pnpm typecheck` exit 0; `pnpm test` 76/76 pass (font files and budgets, license, only `fonts.css` names families, one-line meta switch, WOFF2 metrics read); sizes measured for six families before choosing; Chrome measurement: tuned fallback matches Geist's text box exactly (92 vs 92px; plain Arial 84px); Chrome network log: `/` downloads 1 font file (29.4 KB), `/design/` 2 (52.5 KB), italic never fetched when unused; both one-line switches demonstrated by temporary edit + rebuild; screenshot of the demo page in Geist | O17, O18, O19, X12, X13 |
-| L3 follow-up | — | `pnpm typecheck` exit 0; `pnpm test` 76/76 pass; `pnpm build` writes `:root, [data-accent="violet"]` as the default block in `site.css` | O12, X10 |
+| L4 | #4 | `pnpm typecheck` exit 0; `pnpm test` 76/76 pass (font files and budgets, license, only `fonts.css` names families, one-line meta switch, WOFF2 metrics read); sizes measured for six families before choosing; Chrome measurement: tuned fallback matches Geist's text box exactly (92 vs 92px; plain Arial 84px); Chrome network log: `/` downloads 1 font file (29.4 KB), `/design/` 2 (52.5 KB), italic never fetched when unused; both one-line switches demonstrated by temporary edit + rebuild; screenshot of the demo page in Geist | O17, O18, O19, X12, X13 |
+| L3 follow-up | #5 | `pnpm typecheck` exit 0; `pnpm test` 76/76 pass; `pnpm build` writes `:root, [data-accent="violet"]` as the default block in `site.css` | O12, X10 |
+| L5 | — | `pnpm typecheck` exit 0; `pnpm test` 96/96 pass (21 hand-probed cases for every exemption and trap: custom-property values, hairline borders, breakpoints in/out of `@media`, `color-mix()`, comments/strings/`url()`, real generated `:root, [data-accent]` shape); mutation check on each of the 3 exemptions (each removal fails 1–3 tests); end-to-end: injecting `color: #ff00ff` into `src/styles/base.css` fails `pnpm build` naming file, line, value and fix, reverting restores a clean build; the real `src/styles/*.css` passes with zero violations | O20, O21, X14 |
+| Practical UI review | — | Walked the checklist against real screenshots and code (not memory): home page and `/design/` at 1280px and 320px, plus a squint-test screenshot; verified one apparent 320px overflow against the real DOM (`scrollWidth === clientWidth`, ruled out as a screenshot-capture artifact, not reported). Confirmed via cascade-layer order that `.demo`'s own padding still wins over the new generic `main` rule. Found and fixed X16 (no page-edge gutter); found and deferred X17 (demo interactive states / status icons) | X16 |
+| Preview server | — | `pnpm typecheck` exit 0; `pnpm test` 103/103 pass (root/nested/CSS/font content types, 404, decoded paths, path-traversal guard against the real bypass vector); mutation check on the traversal guard: my first test used a literal `../` that `URL` itself normalizes away and passed even with the guard deleted (X18, caught and fixed — rewrote with a percent-encoded `..%2f..%2f` string, which now correctly fails without the guard); manual smoke test with `curl` against a real `pnpm build` output: `/`, `/design/`, `/site.css`, a font file, a missing path, and the encoded traversal all responded correctly | X7, X18 |
 
 ## How it works
 
@@ -742,3 +876,41 @@ Brotli-decompresses the table stream with `node:zlib`, and reads `unitsPerEm`
 from `head`, ascender/descender/line gap from `hhea`, and average width from
 `OS/2`. Those three tables are never transformed in WOFF2, so they can be read
 directly.
+
+### Raw-value check (L5)
+1. **Clean.** `stripCommentsAndStrings()` blanks out `/* … */` comments and
+   `"…"`/`'…'` string literals (keeping their length, so line numbers still
+   line up), and `stripUrls()` blanks the inside of `url(...)`. This stops the
+   check from flagging a fake unit inside `content: "1px"` or a length that
+   happens to appear in a font file's name.
+2. **Scan.** Five regexes look for the shapes that always mean a raw design
+   value: a number with a length unit (`px`, `em`, `rem`, `vw`, …), a number
+   with `ms`/`s`, a hex color, a color function (`rgb()`, `oklch()`, …), and
+   `color-mix()`.
+3. **Exempt.** Before reporting a match, the check asks four questions: is this
+   inside a `--custom-property: value` declaration (that value *is* the token,
+   defined once)? Is it in the property *name*, not the value? Is it exactly
+   `0`, `100%`, `1fr` or `65ch` (never a design decision, D2)? Is it `1px` on a
+   `border*` property (the one hairline exception), or a listed breakpoint
+   width sitting inside an `@media`/`@container` condition (the other
+   exception, §7.2)? Only what's left is a real violation.
+4. **Report.** Each violation carries the file, line, the exact matched text,
+   and which token category to use instead, e.g.
+   `base.css:102 "#ff00ff" — raw hex color; use a var(--color-*) token`.
+5. **Enforce.** `build.ts` calls `checkRawValues("src/styles")` right before
+   writing `site.css`. Any violation throws with the full list, so `pnpm build`
+   exits non-zero and writes nothing.
+
+`styleFiles()` lists every `.css` file in `src/styles/` except `fonts.css`
+(font metadata, not design values, X14); it never looks at the `.ts` files that
+*generate* CSS, since those are the token source itself (F1a-D20).
+
+### Preview server (closing X7)
+`pnpm preview` runs `scripts/preview.ts`, an `http.createServer` with one
+handler: turn the request URL into a file under `dist/`, read it, and send it
+back with a content type guessed from its extension. A URL ending in `/`
+serves that folder's `index.html`, matching how the build names files
+(`outputFile()` in `page.ts`). A path that resolves outside `dist/` (an
+encoded `../` escape) is refused before any file is read, and a missing file
+becomes a plain 404. It has no other behavior: no rebuilding, no file
+watching, no directory listing.

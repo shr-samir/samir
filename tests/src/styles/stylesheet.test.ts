@@ -37,7 +37,8 @@ test("every top-level block is a declared layer, so no CSS escapes the layers", 
   const [order, ...blocks] = topLevelStatements(css);
   assert.equal(order, `@layer ${LAYERS.join(", ")};`);
   assert.ok(blocks.length > 0);
-  for (const block of blocks) {
+  // @font-face only declares a font for later use; it styles nothing, so it may sit outside layers.
+  for (const block of blocks.filter((b) => b !== "@font-face")) {
     const match = /^@layer ([\w-]+)$/.exec(block);
     assert.ok(match, `unlayered CSS: "${block}"`);
     assert.ok((LAYERS as readonly string[]).includes(match[1]!), `unknown layer "${match[1]}"`);

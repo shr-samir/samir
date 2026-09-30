@@ -1,13 +1,83 @@
 /*
- * Font roles (G2, D4). All other CSS reads only these variables, so changing a
- * family is a one-line edit here. L4 adds self-hosted fonts; until then these
- * point at system fonts.
+ * Fonts (D4, G2). Self-hosted Geist and Geist Mono: variable fonts (one file
+ * covers every weight), Latin subset, OFL-1.1 (public/fonts/OFL.txt), from
+ * Fontsource (Google Fonts build, v5).
+ *
+ * All other CSS reads only the role variables at the bottom, so swapping a
+ * family is an edit to this file alone.
  */
+
+/* Latin subset range; characters outside it fall through to the fallback font. */
+@font-face {
+  font-family: "Geist";
+  src: url("/fonts/geist-latin-wght-normal.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Geist";
+  src: url("/fonts/geist-latin-wght-italic.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  src: url("/fonts/geist-mono-latin-wght-normal.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/*
+ * Metric-matched fallbacks (F1a-D17): shown while the web fonts load, resized
+ * so text takes the same space and barely moves when Geist swaps in.
+ * size-adjust = Geist width / local font width, measured in Chrome on an
+ * English paragraph. ascent/descent = Geist's hhea metrics (1.005em, 0.295em,
+ * from `node scripts/font-metrics.ts`) divided by size-adjust.
+ * Safari ignores the ascent/descent overrides; size-adjust still applies.
+ */
+@font-face {
+  font-family: "Geist Fallback";
+  src: local("Arial"), local("ArialMT");
+  font-style: normal;
+  size-adjust: 102.19%;
+  ascent-override: 98.35%;
+  descent-override: 28.87%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: "Geist Fallback";
+  src: local("Arial Italic"), local("Arial-ItalicMT");
+  font-style: italic;
+  size-adjust: 99.94%;
+  ascent-override: 100.56%;
+  descent-override: 29.52%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: "Geist Mono Fallback";
+  src: local("Courier New"), local("CourierNewPSMT");
+  size-adjust: 99.98%;
+  ascent-override: 100.52%;
+  descent-override: 29.5%;
+  line-gap-override: 0%;
+}
+
 @layer tokens {
   :root {
-    --font-sans: system-ui, sans-serif;
+    --font-sans: "Geist", "Geist Fallback", system-ui, sans-serif;
     --font-heading: var(--font-sans);
+    /* One-line switch to monospace metadata: var(--font-code). It would load the mono file on every page. */
     --font-meta: var(--font-sans);
-    --font-code: ui-monospace, monospace;
+    --font-code: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
   }
 }

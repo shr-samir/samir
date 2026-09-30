@@ -59,6 +59,7 @@ export function demoCss(): string {
   }
 
   .demo-meta {
+    font-family: var(--font-meta);
     font-size: var(--text-sm);
     line-height: var(--leading-sm);
     margin-block-start: var(--space-xs);

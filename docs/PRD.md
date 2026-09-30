@@ -3,8 +3,8 @@
 | | |
 |---|---|
 | **Owner** | Samir Shrestha |
-| **Status** | Draft v0.13 |
-| **Last updated** | 2026-09-27 |
+| **Status** | Draft v0.14 |
+| **Last updated** | 2026-09-28 |
 | **Reference** | [jasoncameron.dev](https://jasoncameron.dev/) — a more refined take on it |
 
 This is a living document. Features get added, removed, or reordered through the
@@ -29,7 +29,9 @@ recorded in the [Change log](#12-change-log).
 
 ### Documentation and commits
 - **PRD** (`docs/PRD.md`): project scope only; changes only when scope changes, and each change gets a change-log row.
-- **Feature docs** (`docs/features/<ID>-<slug>.md`, from `_template.md`): one per feature, holding its first-principles record and a plain-language "How it works" walkthrough.
+- **Docs map** (`docs/README.md`): which doc answers which question.
+- **Feature docs** (`docs/features/<ID>-<slug>.md`, from `_template.md`): one per feature, holding an "Understanding" section (TL;DR, the essence of each layer, questions asked and likely questions, with answers), its first-principles record, and a plain-language "How it works" walkthrough.
+- **Fundamentals** (`docs/fundamentals.md`): how the site works on the bare platform (browser, HTTP, HTML, CSS, modules, Node), compared with what frameworks like React and Vite hide. Concepts only; a section is added in the same PR as the first code that relies on it.
 - **Learnings** (`docs/learnings.md`): one shared file; one- or two-line entries tagged by feature ID, linking to the feature doc for detail.
 - **PRs:** one per layer, each adding standalone value. The feature doc and learnings are updated in the same PR as the code, never afterwards.
 - **Commits:** Conventional Commits with the feature ID as scope, e.g. `feat(F1a): add spacing tokens`, `docs(prd): …`. Other scopes: `prd`, `docs`, `repo`, `deps`. PRs are squash-merged, so the PR title becomes the commit on `main` and must follow this format; F12 checks it in CI.
@@ -140,12 +142,15 @@ feature, and deviations from it are recorded as decisions with a reason.
 ## 5. Tech stack and decisions
 
 **Stack:** native HTML, CSS, and TypeScript · a small TypeScript build script run
-directly by Node (≥ 24) · TypeScript (the only dependency) · hosting TBD (free,
-static).
+directly by Node (≥ 24.12, the current LTS line, where type stripping is stable) ·
+TypeScript and Node's type definitions (the only dependencies, both dev-only) ·
+hosting TBD (free, static).
 
 ### D0: Dependency policy — native first
 - **Rule:** the platform (HTML, CSS, browser APIs, Node's standard library) is the default. A dependency is added only when it solves a genuine problem that native code can't solve reasonably, and it gets a decision record naming that problem and why native isn't enough. Unnecessary dependencies are a liability: upgrades, security issues, and code no one on the project understands.
-- **Current dependencies:** TypeScript only (type-checking and compiling browser scripts).
+- **Current dependencies** (dev-only; nothing ships to the browser):
+  - `typescript`: type-checking, and compiling browser scripts (D6).
+  - `@types/node`: type definitions for Node's standard library, so build scripts can be type-checked. TypeScript 7 includes no ambient types by default (`types: []`), so without it `import … from "node:fs"` fails type-checking [verified: F1a spike S1]. It contains types only, no runtime code; the alternative, leaving build scripts unchecked, would give up strict TypeScript (§6).
 - **Candidates, decided when their feature starts:** a Markdown parser (F5), image resizing for responsive images (F5; alternative: export sizes by hand), syntax highlighting (F8), OG image generation (F11), Cloudflare tooling for counters (F10).
 - **Trade-off accepted:** we write and maintain the build script, the dev server, and the checks ourselves.
 
@@ -161,9 +166,13 @@ src/
   client/           browser scripts (compiled by TypeScript, D6)
   lib/              html helper, content validation, Markdown, checks
 scripts/            build.ts, dev.ts, check scripts
+tests/              all tests, mirroring the folders above (tests/src/lib/html.test.ts tests src/lib/html.ts)
 site.config.ts      site identity, navigation, feature flags
 dist/               build output (git-ignored)
 ```
+Node-side code imports by absolute path through Node's subpath imports in
+`package.json` (`#src/…`, `#scripts/…`), never relative paths (F1a-D10).
+
 A feature is self-contained in its folder and registers itself with the build;
 removing the folder and its flag removes the feature (G8, R3).
 
@@ -226,8 +235,8 @@ removing the folder and its flag removes the feature (G8, R3).
 
 ### D6: Browser scripts — TypeScript compiled to native ES modules, no bundler
 - **Why it fits:** each interactive feature (theme toggle, clock, counters) is a small script, progressively enhancing HTML that already works without it (R4). TypeScript compiles them to ES modules that the browser loads directly; at this size, bundling adds nothing.
-- **Unverified:** the latest TypeScript is 7.0.2 [verified: npm registry]. That it's the Go-based compiler and emits browser scripts cleanly is [memory], checked first in F1a.
-- **Confidence:** low until F1a.
+- **Setup** [verified: F1a spike S1 with TypeScript 7.0.2, the Go-based compiler]: `tsconfig.json` type-checks everything Node runs, with no emit (`erasableSyntaxOnly`, `verbatimModuleSyntax`, `allowImportingTsExtensions`); `tsconfig.client.json` emits `src/client` as ES modules, rewriting `./x.ts` imports to `./x.js` (`rewriteRelativeImportExtensions`). The emitted modules load as native ESM. Details in the [F1a feature doc](features/F1a-design-tokens-and-fonts.md).
+- **Confidence:** high.
 
 ### D7: Development and testing tools — Node's standard library
 - **Dev server:** `node:http` serving the build output, `fs.watch` to rebuild on changes, and a small script that reloads the page when a rebuild finishes (server-sent events).
@@ -519,7 +528,6 @@ enhancement, and a full Lighthouse and accessibility audit.
 | R-3 | Counter storage free-tier limits (F10) — **verify** | Before F10 |
 | R-4 | Saved theme applied before first paint on static pages (inline script in `<head>`) | During F1a/F3 |
 | R-6 | The custom build script and dev server become hard to maintain (D1, D7) | Watch from F1a |
-| R-7 | TypeScript 7 compiling browser scripts (D6) — unverified [memory] | Start of F1a |
 
 Resolved questions and closed risks are removed from this table; their answers
 live in the relevant sections and the change log records when they were decided.
@@ -567,3 +575,4 @@ and a row in §8 when promoted; dependencies still follow D0.
 | 2026-09-27 | v0.8–v0.9 — Problem statement built on six qualities (responsive, scalable, search-optimized, designed with care, accessible, performance-focused); goals G7–G11, rules R8–R12, build-enforced targets in §6. |
 | 2026-09-27 | v0.10–v0.12 — Gap review: project structure, information architecture, URL scheme, token naming, caching, security and privacy, test strategy; future enhancements (§11); decisions on pages, resume, contact, GitHub, MIT license, and placeholder domain. |
 | 2026-09-28 | v0.13 — Cleanup: removed resolved questions, closed risks, superseded decisions, and version asides; condensed the change log. Removed the local commit-message hook: PRs are squash-merged, so F12 checks PR titles in CI instead. Problem statement reworded to a plain, casual tone. |
+| 2026-09-28 | v0.14 — F1a spike S1: TypeScript 7 setup verified (D6 now high confidence, R-7 closed). Added `@types/node` as a second dev-only dependency (D0). Node requirement tightened to ≥ 24.12, where type stripping is stable. Absolute imports via Node subpath imports; tests moved to a mirrored `tests/` folder. Docs layered: `docs/README.md` map, `docs/fundamentals.md`, and an Understanding section in every feature doc. |

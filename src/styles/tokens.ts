@@ -93,17 +93,20 @@ export interface ShadowToken {
 
 /**
  * Two elevation levels: soft two-layer shadows, light from above (PRD §7.5).
- * The shadow color becomes theme-aware in L3; dark theme uses lighter surfaces instead.
+ * `--color-shadow` comes from the palette and is transparent in the dark theme,
+ * which uses lighter surfaces instead of shadows.
  */
+const SOFT_SHADOW = "color-mix(in oklch, var(--color-shadow) 60%, transparent)";
+
 export const shadows: readonly ShadowToken[] = [
   {
     name: "1",
-    value: "0 1px 2px oklch(0% 0 0 / 0.06), 0 1px 3px oklch(0% 0 0 / 0.1)",
+    value: `0 1px 2px ${SOFT_SHADOW}, 0 1px 3px var(--color-shadow)`,
     use: "Raised: cards, tiles",
   },
   {
     name: "2",
-    value: "0 4px 8px oklch(0% 0 0 / 0.06), 0 12px 24px oklch(0% 0 0 / 0.1)",
+    value: `0 4px 8px ${SOFT_SHADOW}, 0 12px 24px var(--color-shadow)`,
     use: "Overlay: menus, popovers",
   },
 ];

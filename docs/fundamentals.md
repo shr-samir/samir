@@ -389,8 +389,34 @@ The math: [`fluid.ts`](../src/styles/fluid.ts).
   [`tokens-css.ts`](../src/styles/tokens-css.ts) (CSS generation),
   [`fluid.ts`](../src/styles/fluid.ts) (clamp math),
   [`stylesheet.ts`](../src/styles/stylesheet.ts) (layer order and concatenation).
-- Colors and `light-dark()` theming arrive in F1a L3 — this section gets a
-  follow-up then.
+
+
+**Colors in OKLCH.** Hex (`#1a5fb4`) and HSL describe colors the way screens
+mix them, not the way eyes see them: an HSL yellow and blue at "50% lightness"
+look nothing alike in brightness. OKLCH (`oklch(50% 0.15 255)`: lightness,
+chroma, hue) is built so equal lightness *looks* equally bright across hues.
+That lets the palette give every role a fixed lightness and swap the hue for
+each accent, with contrast staying almost the same.
+
+**Themes with `light-dark()`, no JavaScript.** `color-scheme: light dark` on the
+page tells the browser both themes are supported, and `light-dark(A, B)` picks A
+or B from the visitor's OS preference. Each color token is written that way, so
+the page follows the OS theme on its own. Setting `color-scheme: dark` on any
+element forces its subtree dark, which is how the demo page shows light and dark
+panels side by side and how the theme switcher (F3) will work.
+
+One subtlety: an inherited property like `color` is resolved on the parent,
+with the parent's theme. A child that changes its `color-scheme` must restate
+`color: var(--color-text)` to pick up its own value.
+
+**Contrast is computed, not eyeballed.** WCAG contrast compares how much light
+two colors emit (relative luminance) as `(lighter + 0.05) / (darker + 0.05)`,
+from 1:1 to 21:1. AA needs 4.5:1 for text and 3:1 for borders and focus
+indicators. The build converts every palette color from OKLCH to the light a
+screen emits and checks every required pair; a failure stops the build. It
+also rejects colors a normal (sRGB) screen can't display, since the browser
+would silently substitute a different color and the computed contrast would be
+wrong. → [`color.ts`](../src/styles/color.ts), [`palette.ts`](../src/styles/palette.ts)
 
 ## 14. Coming in later layers
 

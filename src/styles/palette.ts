@@ -22,9 +22,9 @@ export interface Accent {
 
 /** The accents a visitor can choose from (Q2); the first is the default. */
 export const accents: readonly Accent[] = [
+  { name: "violet", label: "Violet", hue: 295, chroma: 0.16 },
   { name: "blue", label: "Blue", hue: 255, chroma: 0.15 },
   { name: "teal", label: "Teal", hue: 195, chroma: 0.1 },
-  { name: "violet", label: "Violet", hue: 295, chroma: 0.16 },
   { name: "rust", label: "Rust", hue: 45, chroma: 0.14 },
 ];
 

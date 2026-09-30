@@ -26,7 +26,7 @@ site content yet.
 | L1 Foundations | A tiny program that writes HTML files, with safe templates | done |
 | L2 Tokens | Sizes, spacing and motion as CSS variables; base text styles; demo page | done |
 | L3 Color | Light and dark palettes per accent, and a contrast check | in review |
-| L4 Fonts | Chosen fonts, measured, self-hosted | in review |
+| L4 Fonts | Chosen fonts, measured, self-hosted | done |
 | L5 Raw-value check | Build fails if CSS skips the design system | planned |
 
 ### L1 — Foundations
@@ -557,7 +557,7 @@ Frozen at approval. Never edited afterwards; only ticked.
 - [x] O11. The demo page renders every non-color token, generated from the token data.
 
 **L3 — Color and contrast check**
-- [ ] O12. OKLCH palettes for every accent × theme (hues chosen with the owner, Q2), with neutrals tinted by the accent and semantic token names as in §7.3.
+- [x] O12. OKLCH palettes for every accent × theme (hues chosen with the owner, Q2), with neutrals tinted by the accent and semantic token names as in §7.3.
 - [x] O13. Theme switches via `color-scheme` + `light-dark()`, accent via `data-accent`.
 - [x] O14. The contrast check requires every pair in every palette to meet 4.5:1 (text) or 3:1 (borders, focus, non-text). A failure names the palette, the pair and the ratio. The math is tested against known reference values.
 - [x] O15. Any color outside the sRGB gamut fails the build.
@@ -586,7 +586,7 @@ Anything unplanned. Never moved into the original checklist.
 - [ ] X7. Pages link `/site.css`, which doesn't load when `dist/*.html` is opened as a file; previewing needs a local server before the F1b dev server exists — **Trigger:** L2 screenshots needed a throwaway server — **Deferrable** (F1b)
 - [x] X8. Shared `document()` layout started early (F1a-D14) — **Trigger:** a second page needed the same `<head>` — **Deferrable** (done in L2)
 - [x] X9. O9 says headings use line height 1.2; h3 (`text-xl`) uses 1.3 and h4 (`text-lg`) 1.4, because those sizes also set lead paragraphs and the PRD says line height shrinks as size grows. h1/h2 use 1.2, the hero 1.1 — **Trigger:** L2 self-check against the frozen checklist — **Deferrable** (kept by the owner, 2026-09-30; O9 ticked on that basis)
-- [ ] X10. The blue accent (hue 255) sits close to the `info` status color (hue 245); harmless because status always has a label, but if blue is chosen, `info` could move toward cyan — **Trigger:** L3 demo page screenshots — **Deferrable**, decide with Q2
+- [x] X10. The blue accent (hue 255) sits close to the `info` status color (hue 245); harmless because status always has a label, but if blue is chosen as default, `info` could move toward cyan — **Trigger:** L3 demo page screenshots — **Deferrable** (moot: violet is the default, 2026-09-30; still worth a look if blue is ever picked as default)
 - [x] X11. Inherited `color` is resolved on the parent, so a panel that changes `color-scheme` or `data-accent` still inherits the page's text color; demo panels restate `color` and `background` — **Trigger:** L3 demo panels — **Deferrable** (done in L3; noted for F3 components)
 - [x] X12. `scripts/font-metrics.ts` added to read vertical metrics from WOFF2 files (Brotli-decompressed table stream), needed to compute the fallback overrides without a metrics dependency — **Trigger:** L4 fallback tuning — **Deferrable** (done in L4)
 - [x] X13. Code blocks set `font-variant-ligatures: none`, so `=>` isn't drawn as one arrow glyph — **Trigger:** L4 font specimen showed JetBrains Mono's ligatures — **Deferrable** (done in L4)
@@ -600,6 +600,7 @@ Anything unplanned. Never moved into the original checklist.
 | L2 | — | `pnpm typecheck` exit 0; `pnpm test` 48/48 pass (clamp math and endpoints, every token declared and shown, every block inside a declared layer, zoom reachability, heading order, no inline styles); `pnpm build` writes 2 pages + 8.3 KB `site.css`; headless Chrome screenshots at 320px, 375px, 1280px and 200% zoom (no horizontal scrolling; 4 spacing/visual fixes after the first round) | O6, O7, O8, O9, O10, O11, X6, X8, X9 |
 | L3 | — | `pnpm typecheck` exit 0; `pnpm test` 69/69 pass (conversion against sRGB primaries and the #767676 = 4.54:1 WCAG reference; all 8 palettes pass 35 pairs each; failing and out-of-gamut palettes are reported; a failing check throws, stopping the build); `site.css` 19.8 KB raw, 4.1 KB gzip; headless Chrome: color section at 1280px and 375px, and the whole page with the OS preferring light vs dark (page flips, panels keep their own theme) | O13, O14, O15, O16, X11 (O12 pending Q2) |
 | L4 | — | `pnpm typecheck` exit 0; `pnpm test` 76/76 pass (font files and budgets, license, only `fonts.css` names families, one-line meta switch, WOFF2 metrics read); sizes measured for six families before choosing; Chrome measurement: tuned fallback matches Geist's text box exactly (92 vs 92px; plain Arial 84px); Chrome network log: `/` downloads 1 font file (29.4 KB), `/design/` 2 (52.5 KB), italic never fetched when unused; both one-line switches demonstrated by temporary edit + rebuild; screenshot of the demo page in Geist | O17, O18, O19, X12, X13 |
+| L3 follow-up | — | `pnpm typecheck` exit 0; `pnpm test` 76/76 pass; `pnpm build` writes `:root, [data-accent="violet"]` as the default block in `site.css` | O12, X10 |
 
 ## How it works
 

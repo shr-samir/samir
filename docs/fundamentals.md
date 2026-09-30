@@ -337,13 +337,65 @@ modules natively:
 Our scripts only *enhance* a page that already works without them (PRD R4).
 This section gets filled in when the first script lands.
 
-## 13. Coming in later layers
+## 13. CSS without Tailwind: design tokens and cascade layers
+
+Tailwind generates utility classes from its configuration; CSS-in-JS generates
+class names at build or run time. We use neither: plain CSS, with two platform
+features doing the work a framework would otherwise do for us.
+
+**Custom properties as design tokens.** A CSS custom property
+(`--space-m: 1.5rem;`) is a variable, read anywhere with `var(--space-m)`. Every
+visual value — sizes, spacing, radii, shadows, durations — is defined once in
+[`tokens.ts`](../src/styles/tokens.ts), a plain TypeScript data file, and the
+build turns it into these variables ([`tokens-css.ts`](../src/styles/tokens-css.ts)).
+Every other stylesheet reads only `var(--…)`, never a raw number, so changing a
+size means editing one file and rebuilding — the same goal Tailwind's config or
+a CSS-in-JS theme object serves, without a build plugin.
+
+**Cascade layers instead of specificity fights.** Normally two rules that match
+the same element fight by *specificity* (an ID beats a class beats an element),
+which is why frameworks reach for `!important` or scoped class names to force an
+order. `@layer` sidesteps this: layers are declared once, in order —
+
+```css
+@layer reset, tokens, base, layout, components, utilities;
+```
+
+— and **a rule in a later layer always wins, no matter how specific the earlier
+one is**. A single-element selector in `utilities` beats three chained classes
+in `base`. Each source file ([`reset.css`](../src/styles/reset.css),
+[`base.css`](../src/styles/base.css), …) declares which layer it belongs to, and
+the build concatenates them in that order into one `site.css` (§5). This is why
+component and utility CSS, arriving in later features, never needs to
+out-specify what F1a writes now.
+
+**Fluid sizes with `clamp()`.** A type size that jumps at a breakpoint looks
+abrupt. `clamp(min, preferred, max)` picks the middle value unless it would go
+outside `min`/`max`, so a size can grow smoothly with the viewport instead of
+stepping. The preferred value mixes `rem` (ties the size to the user's font
+setting) and `vw` (ties it to viewport width), so text still grows when the user
+zooms, which a pure-`vw` value barely would (WCAG 1.4.4).
+
+There's a catch: zooming makes each CSS pixel bigger, so the *viewport in CSS
+pixels* shrinks, and the `vw` part shrinks with it. A fluid heading therefore
+grows less than the zoom level: on a 1280px window at 200% zoom, `text-4xl`
+renders at about 164% of its normal size and reaches 200% only around 300% zoom.
+Fixed sizes (`text-base`, `text-prose`) double exactly. The rule that keeps 200%
+reachable within the browser's 500% zoom limit is `max ≤ 2.5 × min`, and a test
+enforces it ([F1a X6](features/F1a-design-tokens-and-fonts.md#discovered-checklist)).
+The math: [`fluid.ts`](../src/styles/fluid.ts).
+
+- **Where:** [`src/styles/tokens.ts`](../src/styles/tokens.ts) (data),
+  [`tokens-css.ts`](../src/styles/tokens-css.ts) (CSS generation),
+  [`fluid.ts`](../src/styles/fluid.ts) (clamp math),
+  [`stylesheet.ts`](../src/styles/stylesheet.ts) (layer order and concatenation).
+- Colors and `light-dark()` theming arrive in F1a L3 — this section gets a
+  follow-up then.
+
+## 14. Coming in later layers
 
 Sections to add as the features that need them are built:
 
-- **CSS without Tailwind or CSS-in-JS** (F1a L2–L3): custom properties as design
-  tokens, cascade layers instead of specificity fights, `light-dark()` for
-  themes, why CSS blocks rendering and fonts don't.
 - **Fonts** (F1a L4): when the browser actually downloads a font,
   `font-display: swap`, fallback metrics and layout shift.
 - **The dev server and "hot reload"** (F1b): what hot reload really is: a file

@@ -68,6 +68,38 @@ test("copies public/ and removes stale output", () =>
     },
   ));
 
+test("writes site.css from src/styles/stylesheet.ts when it exists", () =>
+  withFixture(
+    {
+      "src/pages/index.ts": pageModule([["/", "Home"]]),
+      "src/styles/stylesheet.ts": "export default async () => 'body { margin: 0; }';",
+    },
+    async (root) => {
+      const result = await build({ root });
+      assert.equal(result.stylesheet, true);
+      assert.equal(await readFile(join(root, "dist", "site.css"), "utf8"), "body { margin: 0; }");
+    },
+  ));
+
+test("builds without a stylesheet module", () =>
+  withFixture({ "src/pages/index.ts": pageModule([["/", "Home"]]) }, async (root) => {
+    const result = await build({ root });
+    assert.equal(result.stylesheet, false);
+    await assert.rejects(access(join(root, "dist", "site.css")));
+  }));
+
+test("fails when site.css collides with a public/ file", () =>
+  withFixture(
+    {
+      "src/pages/index.ts": pageModule([["/", "Home"]]),
+      "src/styles/stylesheet.ts": "export default () => '';",
+      "public/site.css": "old",
+    },
+    async (root) => {
+      await assert.rejects(build({ root }), /site\.css collides with a file copied from public\//);
+    },
+  ));
+
 test("fails on duplicate paths, naming both modules", () =>
   withFixture(
     {

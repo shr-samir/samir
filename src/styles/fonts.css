@@ -1,0 +1,13 @@
+/*
+ * Font roles (G2, D4). All other CSS reads only these variables, so changing a
+ * family is a one-line edit here. L4 adds self-hosted fonts; until then these
+ * point at system fonts.
+ */
+@layer tokens {
+  :root {
+    --font-sans: system-ui, sans-serif;
+    --font-heading: var(--font-sans);
+    --font-meta: var(--font-sans);
+    --font-code: ui-monospace, monospace;
+  }
+}

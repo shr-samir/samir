@@ -24,7 +24,7 @@ site content yet.
 | Layer | In one line | Status |
 |---|---|---|
 | L1 Foundations | A tiny program that writes HTML files, with safe templates | done |
-| L2 Tokens | Sizes, spacing and motion as CSS variables; base text styles | next |
+| L2 Tokens | Sizes, spacing and motion as CSS variables; base text styles; demo page | done |
 | L3 Color | Light and dark palettes per accent, and a contrast check | planned |
 | L4 Fonts | Chosen fonts, measured, self-hosted | planned |
 | L5 Raw-value check | Build fails if CSS skips the design system | planned |
@@ -124,6 +124,85 @@ checks it separately.
   TypeScript both pick it up.
 - *Where does CSS go?* Nowhere yet; the build learns to produce `site.css` in L2.
 
+### L2 — Non-color tokens and base typography
+
+**Essence.** Every size, space, radius, shadow and duration is written down
+once, as data in `src/styles/tokens.ts`. The build turns that data into CSS
+custom properties (`--text-xl`, `--space-m`, …), joins them with a few
+hand-written CSS files into one `dist/site.css`, and the demo page at `/design/`
+loops over the same data to show every token. The stylesheet and the demo can't
+disagree, and a new token appears in both with no extra work. Text sizes that
+change between phone and laptop are *fluid*: computed by a formula that grows
+them smoothly, instead of jumping at a breakpoint.
+
+**What changed**
+- `src/styles/tokens.ts`: the token data (type scale, weights, spacing, widths, line length, radius, shadows, motion, focus).
+- `src/styles/fluid.ts`: the fluid-size formula, and a model of how a size renders at any window width and zoom (used by tests).
+- `src/styles/tokens-css.ts`: turns the data into custom properties, plus the reduced-motion override.
+- `src/styles/reset.css`, `fonts.css`, `base.css`: browser quirks removed; font role variables (system fonts until L4); default element styles, `.prose`, focus outline.
+- `src/styles/demo-css.ts`: demo page styles, one class per token, generated from the data.
+- `src/styles/stylesheet.ts`: joins everything under one cascade-layer order; the build writes the result to `dist/site.css`.
+- `src/layout/document.ts`: the shared HTML document (`<head>` with the stylesheet link), which F1b grows into the full layout.
+- `src/pages/design.ts`: the demo page at `/design/`; `src/pages/index.ts` now uses `document()`.
+- `scripts/build.ts`: also writes `site.css`.
+
+**Questions asked**
+- *Where should the demo page live?* Public at `/design/`, not in the
+  navigation. It shows the design system as part of the portfolio and gives the
+  build checks a real page. (F1a-D12)
+- *Fluid headings grow only 164–182% at exactly 200% zoom on wide windows;
+  accept or narrow the fluid range?* Accepted: 200% is still reachable within the
+  browser's zoom range, and a test enforces it. (X6)
+- *h3 and h4 use line heights 1.3 and 1.4, not the checklist's 1.2; keep?*
+  Kept: those sizes also set lead paragraphs, where 1.2 is cramped. (X9)
+- *How do tokens work? Walk me through an example.* Take `text-xl`, the h3 size:
+  1. **Data** (`tokens.ts`): `{ name: "xl", mobile: 23, desktop: 28, leading: 1.3, tracking: -0.01 }`.
+  2. **Build** (`tokens-css.ts` + `fluid.ts`) writes
+     `--text-xl: clamp(1.4375rem, 1.3333rem + 0.5208vw, 1.75rem);` plus
+     `--leading-xl` and `--tracking-xl`. 1.4375rem = 23px (min), 1.75rem = 28px
+     (max); in between, the size grows 5px over 960px of window width
+     (0.5208vw), starting from 21.33px (1.3333rem) so the line hits 23px at a
+     320px window.
+  3. **Style** (`base.css`): `h3 { font-size: var(--text-xl); … }` — never the number.
+  4. **Browser** computes it for the current window: 23px at 320px, 25.5px at
+     800px, 28px at 1280px, and stays 28px wider than that.
+
+  Changing `desktop: 28` to `30` and rebuilding updates every h3, the demo page
+  and the tests' checks at once. It's the same idea as a Tailwind theme value
+  behind a `text-xl` class, except the output is a CSS variable that any rule can
+  use and that exists at runtime.
+
+**Questions you might have**
+- *What is a CSS custom property?* A variable in CSS: `--space-m: 1.5rem`
+  defines it, `var(--space-m)` reads it. Unlike Sass variables, they exist in the
+  browser at runtime, so a theme can change them without a rebuild; that's how
+  L3's light and dark palettes will work.
+  → [fundamentals §13](../fundamentals.md#13-css-without-tailwind-design-tokens-and-cascade-layers)
+- *What are the `@layer` blocks for?* They decide which styles win: a later
+  layer beats an earlier one regardless of selector specificity, so component
+  styles never need `!important` or longer selectors to override base styles.
+  → [fundamentals §13](../fundamentals.md#13-css-without-tailwind-design-tokens-and-cascade-layers)
+- *Why isn't there a `tokens.css` file in the repo?* It's generated from
+  `tokens.ts` on every build and exists only inside `dist/site.css`. A committed
+  copy could go stale; generating it keeps the data the only source of truth.
+- *Why rem instead of px?* rem follows the user's browser font-size setting.
+  Someone who sets larger text gets larger text *and* proportionally larger
+  spacing, so layouts keep their shape. Radii stay in px because they shouldn't
+  grow with text.
+- *How does fluid type work?* Each size is a straight line between two points:
+  its mobile size at a 320px window and its desktop size at 1280px.
+  `clamp(min, preferred, max)` draws that line and stops it at both ends; the
+  preferred value mixes rem and vw so it still responds to zoom.
+- *Why generated classes like `demo-text-xl` instead of `style=""`?* Inline
+  `style` attributes need `'unsafe-inline'` in a Content-Security-Policy, which
+  the strict policy planned for F12 would rather avoid.
+- *How do I view the demo page?* Opening `dist/design/index.html` directly
+  won't load the CSS, because `/site.css` then means the root of your drive. It
+  needs a local server until the F1b dev server exists. (X7)
+- *Are these values final?* Type sizes and spacing come from the PRD. The radii
+  (4, 8, 16px), the easing curve and per-size line heights are picks within the
+  PRD's rules; change them in `tokens.ts` and everything follows.
+
 ## Problem statement
 Lay the foundation every later feature builds on. That means a working TypeScript 7
 setup, a minimal build that writes static pages, and the `html` escaping helper;
@@ -169,7 +248,7 @@ Each layer is one PR, adds standalone value, and is approved before the next.
 ## Decision records
 
 ### F1a-D1: Tokens are authored in TypeScript; the build generates `tokens.css`
-- **Decision:** `src/styles/tokens.ts` is the single source; CSS is generated from it.
+- **Decision:** `src/styles/tokens.ts` is the single source; CSS is generated from it at build time, straight into `dist/site.css` (no generated file is committed).
 - **Why it fits:** the demo page must render every token and the contrast check must read every color; one data source means the demo can't miss a token and no check parses `light-dark()` strings. Clamp math is computed, not hand-typed. [verified: Node runs `.ts` directly]
 - **Alternative:** hand-written `tokens.css`, parsed by the demo and checks — regex-fragile, and the demo can drift.
 - **Would be wrong if:** reading generated CSS in DevTools gets confusing (mitigated by comments pointing to the source).
@@ -256,8 +335,32 @@ Each layer is one PR, adds standalone value, and is approved before the next.
 - **Confidence:** high
 - **Spike:** none
 
+### F1a-D12: The token demo page is public at `/design/`, outside the navigation
+- **Decision:** `src/pages/design.ts` builds `/design/` in production too; it isn't linked from the nav.
+- **Why it fits:** chosen by the owner. A visible design system shows craft on a portfolio, and the page gives the build checks (metadata, headings, raw values, contrast) a real page to run against.
+- **Alternative:** a development-only page, excluded from production and the sitemap — hides the work and needs a dev/prod split in the build this early.
+- **Would be wrong if:** visitors who find it are confused, or it becomes a maintenance burden; then exclude it from production.
+- **Confidence:** high
+- **Spike:** none
+
+### F1a-D13: The build writes `site.css` from a `src/styles/stylesheet.ts` module
+- **Decision:** like a page module, the stylesheet is a module whose default export returns text; the build writes it to `dist/site.css` when the module exists.
+- **Why it fits:** the build stays generic (it knows nothing about tokens or CSS files) and testable with fixture projects, while the styles module owns the layer order and the file list.
+- **Alternative:** the build reads `src/styles/*.css` itself — it would have to know the layer order and about generated CSS.
+- **Would be wrong if:** more generated files arrive (sitemap, RSS) and one general "output module" convention would be simpler than one per file type; revisit in F1b/F11.
+- **Confidence:** high
+- **Spike:** none
+
+### F1a-D14: A minimal shared `document()` layout now, instead of in F1b
+- **Decision:** `src/layout/document.ts` renders `<html>` and `<head>` (title, description, stylesheet link) and wraps the page body.
+- **Why it fits:** with two pages needing the same stylesheet link, copying the `<head>` would already be duplication; F1b extends this function rather than creating it.
+- **Alternative:** duplicate the `<head>` in each page until F1b — two copies to keep in sync.
+- **Would be wrong if:** F1b's layout needs a different shape (e.g. slots for header and footer); it's small enough to reshape.
+- **Confidence:** high
+- **Spike:** none
+
 ## Edge cases
-- 200% zoom and larger user font size: rem-based clamps (D4); checked by zooming the demo page.
+- 200% zoom and larger user font size: rem-based clamps (D4). At 200% zoom the demo page reflows with no horizontal scrolling; body sizes double exactly, fluid headings reach 164–182% and double by 250–300% zoom (X6, accepted).
 - Out-of-gamut color: build fails (B4).
 - Font slow or blocked: `font-display: swap` and a `size-adjust`-tuned fallback. Safari doesn't support `ascent-override` ([MDN](https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face/ascent-override)), so Safari may see a small shift on swap; accepted as progressive enhancement.
 - Italic missing: a real italic file ships, so browsers never fake a slanted version.
@@ -291,12 +394,12 @@ Frozen at approval. Never edited afterwards; only ticked.
 - [x] O5. Feature doc `docs/features/F1a-design-tokens-and-fonts.md` created with this record.
 
 **L2 — Non-color tokens and base typography**
-- [ ] O6. `tokens.ts` holds the type (size, leading, tracking), spacing, radius, shadow and motion tokens from §7; the build generates `tokens.css`, with comments pointing back to the source.
-- [ ] O7. Fluid type uses rem + vw `clamp()` between 320 px and 1280 px, with unit tests on both endpoints.
-- [ ] O8. Cascade layers are declared once, and CSS is concatenated into one `site.css` in layer order.
-- [ ] O9. Base typography: body leading 1.5, headings 1.2, weights 400/700 only, prose capped at 65ch, everything left-aligned.
-- [ ] O10. Durations become `0s` under `prefers-reduced-motion`; focus styles use `outline`, so they survive forced-colors mode.
-- [ ] O11. The demo page renders every non-color token, generated from the token data.
+- [x] O6. `tokens.ts` holds the type (size, leading, tracking), spacing, radius, shadow and motion tokens from §7; the build generates `tokens.css`, with comments pointing back to the source.
+- [x] O7. Fluid type uses rem + vw `clamp()` between 320 px and 1280 px, with unit tests on both endpoints.
+- [x] O8. Cascade layers are declared once, and CSS is concatenated into one `site.css` in layer order.
+- [x] O9. Base typography: body leading 1.5, headings 1.2, weights 400/700 only, prose capped at 65ch, everything left-aligned.
+- [x] O10. Durations become `0s` under `prefers-reduced-motion`; focus styles use `outline`, so they survive forced-colors mode.
+- [x] O11. The demo page renders every non-color token, generated from the token data.
 
 **L3 — Color and contrast check**
 - [ ] O12. OKLCH palettes for every accent × theme (hues chosen with the owner, Q2), with neutrals tinted by the accent and semantic token names as in §7.3.
@@ -324,12 +427,17 @@ Anything unplanned. Never moved into the original checklist.
 - [x] X3. Absolute imports via Node subpath imports (`#src/…`, `#scripts/…`) instead of relative paths — **Trigger:** owner request after L1 was built (F1a-D10) — **Deferrable** (done in L1)
 - [x] X4. All tests moved to `tests/`, mirroring the app's folders; the build no longer needs to skip test files in `src/pages/` — **Trigger:** owner request after L1 was built (F1a-D11) — **Deferrable** (done in L1)
 - [ ] X5. Browser scripts can't use `#src/…` (browsers don't read `package.json`, and `tsc` rewrites only relative `.ts` imports); choose relative imports or an import map when the first browser script lands — **Trigger:** X3 — **Deferrable** (F3)
+- [x] X6. Fluid headings grow less than 2× at exactly 200% zoom on wide windows (`text-4xl`: 164% at a 1280px window), because zoom shrinks the CSS viewport and the vw part with it. They reach 200% by 250–300% zoom; body sizes (`sm`, `base`, `prose`) double exactly. Tests enforce that 200% is reachable within the browser's 500% zoom (max ≤ 2.5 × min) — **Trigger:** L2 zoom model check of D4 — **Deferrable** (accepted by the owner, 2026-09-30)
+- [ ] X7. Pages link `/site.css`, which doesn't load when `dist/*.html` is opened as a file; previewing needs a local server before the F1b dev server exists — **Trigger:** L2 screenshots needed a throwaway server — **Deferrable** (F1b)
+- [x] X8. Shared `document()` layout started early (F1a-D14) — **Trigger:** a second page needed the same `<head>` — **Deferrable** (done in L2)
+- [x] X9. O9 says headings use line height 1.2; h3 (`text-xl`) uses 1.3 and h4 (`text-lg`) 1.4, because those sizes also set lead paragraphs and the PRD says line height shrinks as size grows. h1/h2 use 1.2, the hero 1.1 — **Trigger:** L2 self-check against the frozen checklist — **Deferrable** (kept by the owner, 2026-09-30; O9 ticked on that basis)
 
 ## Layer log
 
 | Layer | PR | Verified by | Checklist items ticked |
 |---|---|---|---|
-| L1 | — | `pnpm typecheck` exit 0; `pnpm test` 22/22 pass (after X3/X4); `pnpm build` writes `dist/index.html`; mutation check (escaping removed → 5 tests fail) | O1, O3, O4, O5, X1, X3, X4 |
+| L1 | #1 | `pnpm typecheck` exit 0; `pnpm test` 22/22 pass (after X3/X4); `pnpm build` writes `dist/index.html`; mutation check (escaping removed → 5 tests fail) | O1, O3, O4, O5, X1, X3, X4 |
+| L2 | — | `pnpm typecheck` exit 0; `pnpm test` 48/48 pass (clamp math and endpoints, every token declared and shown, every block inside a declared layer, zoom reachability, heading order, no inline styles); `pnpm build` writes 2 pages + 8.3 KB `site.css`; headless Chrome screenshots at 320px, 375px, 1280px and 200% zoom (no horizontal scrolling; 4 spacing/visual fixes after the first round) | O6, O7, O8, O9, O10, O11, X6, X8, X9 |
 
 ## How it works
 
@@ -387,3 +495,34 @@ Two configs, because Node code and browser code live in different worlds:
   which Node would otherwise try to import at runtime and crash on.
 - `tsconfig.client.json` compiles `src/client/` (browser scripts, from F3 on) to
   ES modules in `dist/client/`, rewriting `./x.ts` imports to `./x.js`.
+
+### Stylesheet (L2)
+`pnpm build` also writes `dist/site.css`, in four steps:
+
+1. **Data.** `src/styles/tokens.ts` lists every token as plain objects, e.g.
+   `{ name: "xl", mobile: 23, desktop: 28, leading: 1.3, … }`.
+2. **Generate.** `tokens-css.ts` turns each entry into custom properties. A fixed
+   size becomes rem (`16px` → `1rem`). A size that changes becomes a `clamp()`
+   from `fluid.ts`, which finds the straight line through (320px, mobile size)
+   and (1280px, desktop size) and writes it as `rem + vw`. A
+   `prefers-reduced-motion` block sets every duration to `0s`.
+3. **Assemble.** `stylesheet.ts` declares the layer order once
+   (`@layer reset, tokens, base, layout, components, utilities;`) and joins, in
+   order: `reset.css`, the generated tokens, `fonts.css` (font role variables),
+   `base.css` (element defaults) and the demo page CSS. Each piece wraps itself in
+   its `@layer`. A test fails if any CSS sits outside a declared layer, because
+   unlayered CSS would beat every layer.
+4. **Write.** The build imports `src/styles/stylesheet.ts`, calls its default
+   export and writes the text to `dist/site.css`, refusing to overwrite a
+   `public/` file of the same name.
+
+Pages get the stylesheet through `src/layout/document.ts`, the shared HTML
+document, which puts `<link rel="stylesheet" href="/site.css">` in every
+`<head>`.
+
+### Demo page (L2)
+`src/pages/design.ts` builds `/design/` by looping over the token arrays: one
+sample and one label per token. Its classes (`demo-text-xl`, `demo-space-m`, …)
+are generated from the same arrays in `demo-css.ts`, so the page needs no inline
+styles. Tests check that every token appears on the page and every class it uses
+has a rule.

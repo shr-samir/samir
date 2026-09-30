@@ -1,6 +1,7 @@
 /**
  * Static site build (D1): renders every page module in `src/pages/` to
- * `dist/<path>/index.html` and copies `public/` as-is.
+ * `dist/<path>/index.html`, writes `dist/site.css` from
+ * `src/styles/stylesheet.ts`, and copies `public/` as-is.
  *
  * Run with `pnpm build`.
  */
@@ -18,7 +19,14 @@ export interface BuildOptions {
 
 export interface BuildResult {
   pages: string[];
+  /** Whether `site.css` was written (projects without `src/styles/stylesheet.ts` have none). */
+  stylesheet: boolean;
 }
+
+/** The module whose default export returns the site's CSS (F1a-D3). */
+type StylesheetModule = {
+  default: () => string | Promise<string>;
+};
 
 export async function build({ root, outDir = join(root, "dist") }: BuildOptions): Promise<BuildResult> {
   root = resolve(root);
@@ -36,20 +44,33 @@ export async function build({ root, outDir = join(root, "dist") }: BuildOptions)
 
   const pages = await loadPages(join(root, "src", "pages"));
   for (const page of pages) {
-    const file = join(outDir, outputFile(page.path));
-    await mkdir(dirname(file), { recursive: true });
-    try {
-      // "wx" fails instead of overwriting, catching pages that collide with public/ files.
-      await writeFile(file, page.body.value, { flag: "wx" });
-    } catch (error) {
-      if (isErrorCode(error, "EEXIST")) {
-        throw new Error(`Page "${page.path}" collides with a file copied from public/`);
-      }
-      throw error;
-    }
+    await writeNew(join(outDir, outputFile(page.path)), page.body.value, `Page "${page.path}"`);
   }
 
-  return { pages: pages.map((page) => page.path) };
+  const stylesheetModule = join(root, "src", "styles", "stylesheet.ts");
+  const hasStylesheet = await exists(stylesheetModule);
+  if (hasStylesheet) {
+    const module = (await import(pathToFileURL(stylesheetModule).href)) as Partial<StylesheetModule>;
+    if (typeof module.default !== "function") {
+      throw new Error("src/styles/stylesheet.ts must default-export a function that returns the site's CSS");
+    }
+    await writeNew(join(outDir, "site.css"), await module.default(), "site.css");
+  }
+
+  return { pages: pages.map((page) => page.path), stylesheet: hasStylesheet };
+}
+
+/** Writes a file that must not exist yet, so generated output never silently replaces a public/ file. */
+async function writeNew(file: string, content: string, label: string): Promise<void> {
+  await mkdir(dirname(file), { recursive: true });
+  try {
+    await writeFile(file, content, { flag: "wx" });
+  } catch (error) {
+    if (isErrorCode(error, "EEXIST")) {
+      throw new Error(`${label} collides with a file copied from public/`);
+    }
+    throw error;
+  }
 }
 
 async function loadPages(pagesDir: string): Promise<Page[]> {

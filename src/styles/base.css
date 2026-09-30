@@ -1,0 +1,88 @@
+/* Default styles for plain HTML elements, from tokens only (PRD §7.1). */
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: var(--leading-base);
+    font-weight: var(--weight-regular);
+    text-align: start;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-heading);
+    font-weight: var(--weight-bold);
+    text-wrap: balance;
+  }
+
+  h1 {
+    font-size: var(--text-3xl);
+    line-height: var(--leading-3xl);
+    letter-spacing: var(--tracking-3xl);
+  }
+
+  h2 {
+    font-size: var(--text-2xl);
+    line-height: var(--leading-2xl);
+    letter-spacing: var(--tracking-2xl);
+  }
+
+  h3 {
+    font-size: var(--text-xl);
+    line-height: var(--leading-xl);
+    letter-spacing: var(--tracking-xl);
+  }
+
+  h4 {
+    font-size: var(--text-lg);
+    line-height: var(--leading-lg);
+  }
+
+  h5,
+  h6 {
+    font-size: var(--text-base);
+    line-height: var(--leading-base);
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  b,
+  strong {
+    font-weight: var(--weight-bold);
+  }
+
+  small {
+    font-size: var(--text-sm);
+    line-height: var(--leading-sm);
+  }
+
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family: var(--font-code);
+  }
+
+  /* Long-form text: larger size, capped line length (about 65 characters). */
+  .prose {
+    font-size: var(--text-prose);
+    line-height: var(--leading-prose);
+    max-width: var(--measure-prose);
+  }
+
+  .prose > * + * {
+    margin-block-start: var(--space-s);
+  }
+
+  /* Outline, not box-shadow, so focus stays visible in forced-colors mode. Color arrives in L3. */
+  :focus-visible {
+    outline: var(--focus-width) solid currentColor;
+    outline-offset: var(--focus-offset);
+  }
+}

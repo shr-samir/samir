@@ -1,0 +1,21 @@
+{
+  // Type-checks everything Node runs directly (build scripts, templates, tests).
+  // Node strips types at runtime, so this config never emits (D1, F1a-D6).
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "nodenext",
+    "noEmit": true,
+    "types": ["node"],
+
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "skipLibCheck": true
+  },
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules", "dist", "src/client"]
+}

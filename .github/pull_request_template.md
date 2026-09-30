@@ -19,8 +19,9 @@
 | | |
 
 ## Before merging
-- [ ] Feature doc updated in this PR (layer log, checklists, How it works)
+- [ ] Feature doc updated in this PR (Understanding for this layer, layer log, checklists, How it works)
 - [ ] Learnings added to `docs/learnings.md`, if any
+- [ ] `docs/fundamentals.md` updated, if this PR relies on a platform concept it doesn't explain yet
 - [ ] Practical UI checklist run (UI changes)
 - [ ] Accessibility checked (UI changes): keyboard-only walkthrough, screen reader pass, 200% zoom, forced-colors mode, reduced motion
 - [ ] No raw design values; tokens only

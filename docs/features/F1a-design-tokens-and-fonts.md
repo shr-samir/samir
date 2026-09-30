@@ -15,19 +15,21 @@ that apply beyond this feature are explained in
 is doing and why.
 
 ### TL;DR
-F1a builds the foundation everything else stands on: the machinery that turns
-TypeScript into HTML files (L1), then the design system as CSS variables
-(L2–L3), self-hosted fonts (L4), and a check that keeps every style using that
-system (L5). By the end there's one demo page showing every token; no real
-site content yet.
+F1a is **done**. It builds the foundation everything else stands on: the
+machinery that turns TypeScript into HTML files (L1), the design system as CSS
+variables — type, spacing, color, motion — (L2–L3), self-hosted fonts with no
+layout shift (L4), a build check that a raw value can never bypass a token
+(L5), a `pnpm preview` server, and an accessibility close-out. One demo page
+(`/design/`) shows every token; no real site content yet — that starts at F4.
 
 | Layer | In one line | Status |
 |---|---|---|
 | L1 Foundations | A tiny program that writes HTML files, with safe templates | done |
 | L2 Tokens | Sizes, spacing and motion as CSS variables; base text styles; demo page | done |
-| L3 Color | Light and dark palettes per accent, and a contrast check | in review |
+| L3 Color | Light and dark palettes per accent, and a contrast check | done |
 | L4 Fonts | Chosen fonts, measured, self-hosted | done |
-| L5 Raw-value check | Build fails if CSS skips the design system | in review |
+| L5 Raw-value check | Build fails if CSS skips the design system, `pnpm preview` added | done |
+| Close-out | Accessibility manual passes; F1a marked done | done |
 
 ### L1 — Foundations
 

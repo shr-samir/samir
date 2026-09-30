@@ -1,0 +1,413 @@
+# F1b — Layout shell
+
+| | |
+|---|---|
+| **PRD** | [§8 F1b](../PRD.md#8-feature-list) |
+| **Status** | planned |
+| **Checklist frozen** | 2026-09-30 |
+
+Learnings from this feature go in [`docs/learnings.md`](../learnings.md), tagged `[F1b]`.
+
+## Understanding
+Plain-language summary for the owner, updated every layer. Platform concepts
+that apply beyond this feature go in [`fundamentals.md`](../fundamentals.md);
+this section covers what *this* feature is doing and why.
+
+### TL;DR
+F1b builds the shell every page sits inside: complete `<head>` metadata, a
+header with navigation and a mobile menu, a footer, a skip link, button/link
+styles at all three weights, real layout primitives (replacing F1a's
+temporary padding fix), a static 404 page, and the dev server. By the end,
+every page looks and behaves like part of one site, not a loose collection of
+pages, and `pnpm dev` gives a live-reloading way to work on it.
+
+| Layer | In one line | Status |
+|---|---|---|
+| L1 Layout primitives | Container/section/stack/grid; components size to their own container, not the screen | in review |
+| L2 Head metadata | Every page's `<head>` is complete, unique, and build-checked | planned |
+| L3 Header, nav, menu | Site nav and a no-JS mobile menu | planned |
+| L4 Footer, buttons, 404 | Remaining chrome pieces and the 404 page | planned |
+| L5 Dev server | `pnpm dev`: rebuild on change, reload the browser | planned |
+
+### L1 — Layout primitives
+
+**Essence.** Two related ideas. First, container/section/stack/grid as
+tokens-only CSS primitives, replacing the temporary `main { padding-inline }`
+rule F1a added as a stopgap. Second — and easy to miss — **components should
+size against their own container, not the browser window.** `vw`/`vh` always
+mean the full screen, however deeply an element is nested; if a component's
+real parent is narrower than the screen (behind a sidebar, inside a capped
+container), a `vw`-sized child inside it is still sized off the *screen*, not
+its actual available space. Container queries (`container-type: inline-size`
+on the wrapper, `@container` on the child) fix this: a component reacts to
+"how much space do I actually have," which is what "responsive" should mean
+for anything that isn't the page shell itself.
+
+**What changed**
+- `src/styles/layout.css`: container widths, section spacing, stack, grid —
+  tokens only; the page shell (`body`/`main`/`header`/`footer` flex layout,
+  `container-type: inline-size` on `main`).
+- `src/styles/base.css`: F1a's temporary `main { padding-inline }` rule removed.
+- `src/styles/stylesheet.ts`: `layout.css` wired in, after `base.css`.
+- `src/pages/index.ts`: `<main>` now uses `class="container"`.
+- `scripts/check-raw-values.ts`: `100vh` added to the D2 allowlist (a
+  structural value — "the whole viewport" — not a design decision, the same
+  idea as the existing `100%`).
+
+**Questions asked**
+- *What about shared components like header/footer — does the changeable
+  middle section take the remaining space, and is "remaining space" its own
+  viewport?* Nothing takes remaining space automatically; `vw`/`vh` never mean
+  "what's left after the header." The shell uses flex or grid
+  (`main { flex: 1 }`, or a grid `1fr` row) so the browser computes the
+  leftover space itself — no hardcoded header height, no `calc(100vh - …)`.
+- *Should children of `main` believe their parent is the viewport?* Yes, and
+  that's what container queries are for (F1b-D4, below) — a component queries
+  its own container's width, never the window's.
+
+**Questions you might have**
+- *Why not `calc(100vh - <header height>)`?* It hardcodes a number that
+  breaks the moment the header wraps to two lines, or a token changes size —
+  exactly the kind of raw value F1a's raw-value check (L5) would flag. Flex/
+  grid never need the number; the browser measures the header every time.
+- *Does every page need a fixed-height, non-scrolling middle section?*
+  No — nothing in the PRD asks for an app-shell layout. Pages here are
+  ordinary, taller-than-one-screen, scrolling content, like the reference
+  site (jasoncameron.dev). The flex/grid shell just avoids hardcoded numbers;
+  it isn't building a fixed-viewport app.
+- *Is `@container` safe to use across browsers?* Yes — [verified: caniuse,
+  2026-09-30] 94.87% global usage, full support in Chrome/Edge/Safari/
+  Firefox's last 2 versions. This upgrades F1a's D2, which had flagged
+  container queries as `[memory]`, to `[verified]`.
+- *Why does `main` need an explicit `width: 100%` on top of `flex: 1`?* Found
+  the hard way (below) — `container-type: inline-size` alone, on a `flex: 1`
+  child of a column-direction flex parent, can let `main` collapse to almost
+  nothing instead of filling the row.
+
+**A real bug, and how it was actually found**
+
+`main`'s content briefly rendered as one character per line — an extreme,
+near-zero width — the first time all of L1's pieces were combined and
+screenshotted. Several early theories (the flexbox min-width default, `@layer`
+itself, undefined CSS variables, `text-wrap: balance` interacting with a fluid
+`clamp()` font size) each seemed plausible and were tested individually, and
+every one of them **passed** in isolation — none reproduced the bug. That was
+the useful signal: a hand-typed "minimal reproduction" that doesn't reproduce
+anything means the minimal case is missing the actual trigger, not that there
+is no trigger.
+
+The fix was to stop guessing and bisect the *real* generated `dist/site.css`
+directly — extracting its exact top-level `@layer` blocks with the same
+brace-tracking approach the raw-value checker uses, so every test file was
+guaranteed syntactically identical to the real output, then removing pieces
+one at a time until the smallest file that still reproduced the bug was found.
+That file, diffed line-by-line against a hand-typed version that didn't
+reproduce it, showed the one real difference every earlier attempt had missed:
+**`container-type: inline-size` on `main`.** Removed from the known-bad file
+alone, the bug disappeared completely; added back alone, it reappeared. That
+two-way, single-variable test is what actually proved the cause, not any of
+the earlier theories, however reasonable they sounded.
+
+Root mechanism: `container-type: inline-size` makes `main` a size-containment
+context — its own content can no longer influence its size. Combined with
+`flex: 1` inside a `flex-direction: column` parent (which only governs
+`main`'s *height*, not its width — that's ordinarily `align-items: stretch`'s
+job) and `min-width: 0` (removing the one remaining content-based minimum),
+nothing was left constraining `main`'s width at all. An explicit
+`width: 100%` restores it directly, rather than relying on inherited stretch
+behavior that turned out not to survive the combination.
+## Problem statement
+F1b builds the shared shell every page sits inside: the page `<head>` with
+complete metadata, a header with navigation and a mobile menu, a footer, a
+skip link, button/link styles at all three PRD weights, the container/
+section/grid layout primitives F1a's temporary gutter fix stood in for, a
+static 404 page, and the dev server (rebuild on file change, reload the
+browser).
+
+**Done** means: every page (currently `/` and `/design/`) renders inside this
+shell with complete, build-checked metadata; the header/footer/skip link work
+with no JavaScript; a 404 page exists and is prerendered; `pnpm dev` serves
+the site with reload on change; F1a's temporary `main` padding is replaced by
+real layout primitives.
+
+### Assumptions
+- A1. Nav links to Projects, Blog, About, Resume — pages that don't exist
+  until F5, F7, F8. Resolved as F1b-D1 below. [assumption]
+- A2. The OG image and favicons are a generated placeholder (name, violet
+  accent, Geist), replaceable later without code changes. [decided with the
+  owner, 2026-09-30]
+- A3. `theme-color` reflects the default (light, violet) palette only;
+  per-theme switching is F3's job (needs JS). [assumption]
+- A4. The mobile menu must work with zero JavaScript, since F1b ships before
+  any browser script exists (F3 is the first). [assumption]
+
+## Business logic
+- B1. Every page passes through one shared document/layout function; no page
+  hand-writes its own `<head>` or chrome (extends F1a-D14).
+- B2. Metadata is complete or the build fails (R9): title, description,
+  canonical URL, `lang`, link-preview data — unique per page, no duplicates
+  site-wide.
+- B3. Disabled features drop out of the nav, sitemap, and RSS (R3) — F1b's
+  nav must already be config-driven in shape, even though `site.config.ts`
+  itself is F2's job to build out.
+- B4. The header, footer, skip link, and mobile menu must work with zero
+  JavaScript (R4); JS only enhances.
+- B5. One `h1` per page, ordered headings, semantic landmarks (`header`,
+  `nav`, `main`, `footer`) — build-checked (§6).
+- B6. Every interactive element has all its states designed: default, hover,
+  focus-visible, active (PRD §7.4).
+- B7. The 404 page is real, prerendered HTML (a real 404 *status* is the
+  host's job, D5/F12 — not F1b).
+- B8. The dev server rebuilds on file change and reloads the browser; failed
+  checks are reported but don't stop it (R4/D1); production still fails hard.
+- B9. A component's internal layout adapts to its own available space, not
+  the screen; only the page shell itself reads the real viewport.
+
+## Implementation plan
+
+### Sub-problems
+1. Layout primitives (container, section, stack, grid; container queries)
+2. The `<head>` metadata contract, and the build check that enforces it
+3. Header, nav, skip link, mobile menu (no-JS disclosure pattern)
+4. Footer
+5. Button and link styles, all three weights, all states
+6. Static 404 page
+7. Placeholder OG image + favicons (generated from tokens)
+8. Minimal `site.config.ts` (name, URL, description, nav) — just enough for
+   the header to read from, not the full F2 schema
+9. Dev server (`node:http` + `fs.watch`, debounced + reload)
+
+### Layers
+Each layer is one PR, adds standalone value, and is approved before the next.
+1. **L1 — Layout primitives:** container/section/stack/grid CSS, container
+   queries, replacing the temporary gutter.
+2. **L2 — Head metadata + build check:** the metadata contract, canonical
+   URLs, OG/favicon assets, the "missing/duplicate metadata fails the build"
+   check.
+3. **L3 — Header, nav, skip link, mobile menu:** no-JS disclosure, all
+   states, config-driven nav shape.
+4. **L4 — Footer, buttons/links, 404 page:** the remaining chrome pieces,
+   sharing the same button/link token styles.
+5. **L5 — Dev server:** `pnpm dev`, rebuild + reload, non-blocking checks in
+   dev.
+
+## Decision records
+
+### F1b-D1: Nav links render even before their target page exists
+- **Decision:** nav points at real future URLs (`/projects/`, `/blog/`,
+  `/about/`, `/resume/`) now, even though those pages don't exist until
+  F5/F7/F8.
+- **Why it fits:** matches R3's config-driven mechanism; F5/F7/F8 add pages
+  without touching header code (G8, self-contained features). F1b's own
+  "header with nav" acceptance criterion can be verified with real links.
+- **Alternative:** omit nav until targets exist — but then nothing proves the
+  nav actually works, and F5/F7/F8 would each need to circle back to add it.
+- **Would be wrong if:** a broken link looked like a shipped bug rather than
+  a normal, temporary state during incremental construction — mitigated by
+  the site not being deployed until F12, and by F1b's own 404 page (L4)
+  making any dead link visible rather than silently broken.
+- **Confidence:** high.
+- **Spike:** none.
+
+### F1b-D2: The mobile menu is a `<details>`/`<summary>` disclosure, snap open/close
+- **Decision:** native `<details>`; no open/close animation.
+- **Why it fits:** natively keyboard-operable (native focus handling, no
+  ARIA needed), works with zero JS (R4).
+- **Alternative:** a `<button>` + `aria-expanded` + CSS `:has()` — needs no
+  JS either, but reinvents disclosure semantics `<details>` gives for free,
+  plus manual ARIA wiring to match.
+- **Would be wrong if:** the design needed a smooth height transition, which
+  turned out to need a Chromium-only CSS feature — see S3.
+- **Confidence:** high (was low; resolved by S3).
+- **Spike:** S3 (passed; see below).
+
+### F1b-D3: `pnpm dev` is `node:http` + `fs.watch`, debounced — no dependency
+- **Decision:** a plain Node script; `fs.watch` triggers a rebuild, debounced
+  (50ms, required — not optional), with a reload signal (SSE or similar) to
+  the open browser.
+- **Why it fits:** D7 already committed to this; F1b is where it's actually
+  built. No bundler-style dev server needed, since there's no bundling (D0).
+- **Alternative:** Vite's dev server alone, without its build step — still a
+  dependency, against this project's whole premise.
+- **Would be wrong if:** `fs.watch`'s known cross-platform quirks caused
+  missed rebuilds on the actual dev machine (Windows) — checked in S4.
+- **Confidence:** high (was low; resolved by S4). Debouncing is a required
+  part of the design, not an optional nicety.
+- **Spike:** S4 (passed with a required implementation detail; see below).
+
+### F1b-D4: Components query their container, not the viewport
+- **Decision:** the layout wrapper (`main`, and any component wrapper that
+  holds independently-sized children) gets `container-type: inline-size`.
+  Any component whose internal layout should change based on available
+  space — not screen size — uses `@container (min-width: …)`, never
+  `vw`/`vh`. A child never assumes its parent equals the browser viewport.
+- **Why it fits:** `vw`/`vh` always mean the actual browser window, no
+  matter how deep an element is nested — if `main` is narrowed by a sidebar
+  or a max-width container, a `vw`-sized child inside it is still sized off
+  the full screen, not its real available space. This makes explicit, as its
+  own checklist item, what F1a's D2 already committed to ("components use
+  container queries so they adapt to where they're placed").
+- **Alternative:** `calc(100vw - <sidebar width>)` per component — brittle,
+  breaks the moment the sidebar's width changes, and doesn't compose (a
+  component nested two levels deep would need to know about every ancestor).
+- **Would be wrong if:** container queries turned out unsupported in a
+  target browser — checked, not the case.
+- **Confidence:** high. [verified: caniuse, 2026-09-30 — 94.87% global
+  usage; full support in Chrome/Edge/Safari/Firefox's last 2 versions]
+- **Spike:** none (checked directly via caniuse).
+
+## Edge cases
+- A nav link to a not-yet-built page (F1b-D1): must not 404 silently during
+  development; the 404 page itself (also F1b) makes this visible.
+- The metadata check must catch a **duplicate** title/description/canonical
+  across pages, not just a missing one (R9) — written generally, not
+  special-cased for today's 2 pages.
+- The mobile menu's open state naturally resets on navigation (fresh HTML
+  per page, no JS yet) — worth stating since F3+ adds JS that could
+  introduce a stale-open-state bug later.
+- The skip link must be the very first focusable element and visually
+  hidden until focused — `display: none` would also hide it from focus,
+  which is the common mistake.
+- The 404 page must itself pass the same metadata/heading checks as every
+  other page — it's a real page, not an exception.
+- Dev server: a failed check (e.g. a raw CSS value) must report in-terminal
+  without blocking `pnpm dev` (closes F1a's X15), while `pnpm build` still
+  fails hard.
+- Windows-specific: `fs.watch` fires 2 `change` events per save (confirmed by
+  S4) — must be debounced, not assumed away.
+
+## Spikes
+
+### S3: mobile menu disclosure pattern (2026-09-30)
+- **Question:** does `<details>`/`<summary>` support a smooth open/close
+  transition in current evergreen browsers, or does content just snap
+  open/closed?
+- **Pass if:** at least a snap open/close (no animation) works correctly and
+  accessibly across the "last 2 versions" target; animation is a
+  nice-to-have, not required.
+- **Fail if:** `<details>` can't be styled to match the intended header
+  layout at all (e.g. can't be positioned as an overlay), forcing a
+  different pattern.
+- **Result:** `<details>` works correctly — natively keyboard-operable
+  (`tabIndex: 0`, native role, no ARIA needed), opens/closes via the native
+  `open` attribute, positions correctly as an absolute overlay under
+  `<summary>`. The only CSS technique to animate `height: auto`
+  (`interpolate-size`) has **zero support in Firefox or Safari**
+  [verified: caniuse, 2026-09-30 — 72.21% global usage, Chromium-only],
+  disqualifying it against the PRD's "last 2 versions of evergreen browsers"
+  target outright. Confirmed the fallback: without it, the menu's height
+  change completes within one animation frame (measured 36px before and
+  after one `requestAnimationFrame`, i.e. no gradual transition) — a clean
+  snap, not a broken or janky one.
+- **Verdict:** stands (F1b-D2). Snap open/close, no animation. An
+  opacity-only fade (animatable everywhere) is a possible small enhancement
+  later, not committed to now.
+
+### S4: `fs.watch` reliability on Windows (2026-09-30)
+- **Question:** does `fs.watch` on a `src/` tree reliably fire exactly once
+  per file save on Windows, without missed or duplicate events, well enough
+  to drive a rebuild?
+- **Pass if:** 10 consecutive saves of a test file each trigger exactly one
+  rebuild within ~1 second, no misses.
+- **Fail if:** events are missed, duplicated in a way that breaks a naive
+  rebuild-on-event implementation, or don't fire at all on this machine.
+- **Result:** literal criterion failed, intent passed. 11 saves (1 initial +
+  10 spaced 300ms apart) produced exactly 22 `change` events — a consistent
+  2:1 ratio every time, not random flakiness. Undebounced, this means every
+  save triggers 2 rebuilds. With a 50ms debounce, 11 saves produced exactly
+  11 rebuilds, no misses, no extras.
+- **Verdict:** stands (F1b-D3), with debouncing promoted from optional to
+  **required**. The dev server design must debounce `fs.watch` callbacks;
+  this is now O14 in the checklist, not an implementation detail to discover
+  later.
+
+## Original checklist
+Frozen at approval (2026-09-30). Never edited afterwards; only ticked.
+
+**L1 — Layout primitives**
+- [ ] O1. Container widths (`content` ~680px, `wide` ~1120px), section
+  spacing, a stack primitive (consistent vertical rhythm via `* + *`), and a
+  grid primitive (4/8/12 columns per breakpoint), all tokens-only. Components
+  size against their nearest wrapper, not the browser window: the layout
+  wrapper(s) declare `container-type: inline-size`, and any component whose
+  layout should adapt to where it's placed (cards, tiles) uses `@container`
+  queries, never `vw`/`vh` (F1b-D4). Page-level layout (the shell itself)
+  still uses ordinary `@media` breakpoints (D2).
+- [ ] O2. F1a's temporary `main { padding-inline }` rule in `base.css` is
+  removed, replaced by the real primitives; `/design/` and `/` both still
+  render correctly (no regression).
+
+**L2 — Head metadata + build check**
+- [ ] O3. Every page supplies: title, description, canonical URL, `lang`,
+  OG title/description/image, Twitter card tags — via one shared contract,
+  not hand-written per page.
+- [ ] O4. The build fails if any page is missing metadata, or if two pages
+  share the same title, description, or canonical URL.
+- [ ] O5. A generated placeholder OG image (1200×630, tokens-based) and a
+  generated favicon set exist in `public/`, wired into every page's `<head>`.
+- [ ] O6. `theme-color` reflects the default (violet, light) palette.
+
+**L3 — Header, nav, skip link, mobile menu**
+- [ ] O7. Header with site name (links home) and nav (Projects, Blog, About,
+  Resume), reading from a small config list (not yet the full F2
+  `site.config.ts`).
+- [ ] O8. A skip link: first focusable element, visually hidden until
+  focused, jumps to `main`.
+- [ ] O9. Mobile menu: `<details>`/`<summary>` disclosure, snap open/close
+  (no animation, per S3), fully keyboard-operable, all interactive states
+  designed (default/hover/focus-visible/active).
+- [ ] O10. Desktop nav and mobile menu both pass the raw-value check
+  (F1a-D8) and use only semantic HTML landmarks.
+
+**L4 — Footer, buttons/links, 404 page**
+- [ ] O11. Footer: contact (email + social links, no form), site
+  name/copyright-style line.
+- [ ] O12. Button styles at all three PRD weights (primary/secondary/
+  tertiary), same height/padding/radius, all states designed, ≥48×48px
+  targets.
+- [ ] O13. A static, prerendered 404 page, passing the same metadata/heading
+  checks as every other page.
+
+**L5 — Dev server**
+- [ ] O14. `pnpm dev`: serves `dist/`, watches `src/`/`content/`/`public/`
+  (recursive), rebuilds on change with a **50ms debounce** (S4 requirement,
+  not optional), reloads the open browser (SSE or equivalent).
+- [ ] O15. Failed checks (metadata, raw-value) report in the terminal and
+  the page during `pnpm dev` but don't stop serving; `pnpm build` still
+  fails hard. Closes F1a's X15.
+
+**Close-out**
+- [ ] O16. All PRD F1b acceptance criteria met (§8): all states shown, no
+  raw values, works 320px→2560px and 200% zoom, keyboard reaches everything,
+  mobile menu works or degrades without JS, build fails on missing
+  metadata/duplicate title/no h1/skipped headings, Practical UI checklist
+  passes.
+
+## Discovered checklist
+Anything unplanned. Never moved into the original checklist.
+- [x] X1. `main` collapsed to a near-zero width (one character per line) once
+  `flex: 1`, `min-width: 0` and `container-type: inline-size` were combined on
+  a `flex-direction: column` parent — `container-type: inline-size` removes
+  the content-based size signal that would otherwise have kept `main` full
+  width — **Trigger:** L1's first real screenshot of the combined page shell —
+  **Blocking** (fixed: `width: 100%` added to `body > main`, verified by
+  removing and re-adding it on the exact reproducing file, and by a
+  mutation-tested regression test)
+- [x] X2. `100vh` isn't covered by the raw-value check's D2 allowlist (only
+  `0`, `100%`, `1fr`, `65ch`) — flagged as a false-positive raw value even
+  though it's a structural, non-design-decision value, the same category as
+  the already-allowed `100%` — **Trigger:** first `pnpm test` run after adding
+  `layout.css` — **Blocking** (fixed: `100vh` added to `ALLOWED_VALUES` in
+  `check-raw-values.ts`, with a test for both the allowed case and that other
+  viewport-unit values, e.g. `50vh`, are still correctly flagged)
+
+## Layer log
+
+| Layer | PR | Verified by | Checklist items ticked |
+|---|---|---|---|
+| L1 | — | `pnpm typecheck` exit 0; `pnpm test` 113/113 pass (layout.css structure: shell sizing, container-type, container/container-wide use width tokens, section/stack/grid rules, plus the width:100% regression test, all mutation-tested); `pnpm build`; headless Chrome screenshots of `/` and `/design/` at 1280px and 375px confirm no regression and the width-collapse bug is fixed; a real bug (X1) was found, root-caused by bisecting the actual generated CSS (not hand-typed reconstructions) after several plausible theories failed to reproduce it, and fixed | O1, O2, X1, X2 |
+
+## How it works
+*(written once L1 lands — a plain-language walkthrough of the layout
+primitives, container-query mechanics, metadata contract, header/menu, and
+dev server, file by file.)*

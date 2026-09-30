@@ -8,6 +8,10 @@ decision) for detail. Add entries in the same PR as the code that taught them.
 
 ## Entries
 
+- 2026-09-30 [F1b] `container-type: inline-size` on a `flex: 1` child of a column-direction flex parent can make the child collapse to near-zero width — the containment removes the content-based size signal, and `flex: 1` alone doesn't guarantee stretch in the cross axis once that's gone. Fix: an explicit `width: 100%` on the child. → [fundamentals §15](fundamentals.md#15-flex-sizing-and-how-container-type-can-quietly-undo-it)
+- 2026-09-30 [F1b] When a hand-typed "minimal reproduction" of a CSS bug doesn't reproduce it, that's a sign the minimal case is missing the real trigger — not evidence the bug doesn't exist or was already fixed. Bisect the real generated output (extracting exact top-level blocks so every test file stays valid) instead of reconstructing by hand. → [F1b discovered checklist](features/F1b-layout-shell.md#discovered-checklist)
+- 2026-09-30 [F1b] `100vh` is the same kind of "not a design decision" value as `100%` (already allowed) — it means "the whole viewport," not a token-worthy size. Added to the raw-value check's allowlist alongside it. → [F1a-D20 / check-raw-values.ts](features/F1a-design-tokens-and-fonts.md#f1a-d20-raw-value-check-scope-is-hand-written-css-under-srcstyles-excluding-fontscss)
+
 - 2026-09-30 [F1a] "Focus reaches every element" isn't enough for a keyboard walkthrough — also read each element's accessible text. 8 of 9 links on the F1a demo page (one per accent × theme panel) shared the identical text "an underlined link"; all were reachable, but a screen reader's links-list navigation couldn't tell them apart. → [F1a X20](features/F1a-design-tokens-and-fonts.md#discovered-checklist)
 - 2026-09-30 [F1a] Headless Chrome can't emulate Windows' forced-colors mode directly (it's an OS feature). What can be checked instead: no background-only boundaries (forced-colors strips custom backgrounds but keeps explicit borders) and no `forced-color-adjust: none` overriding the browser's own substitutions. → [F1a close-out](features/F1a-design-tokens-and-fonts.md#f1a-close-out-accessibility-passes-o22)
 

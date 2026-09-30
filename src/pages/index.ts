@@ -10,7 +10,7 @@ export default function pages(): Page[] {
       body: document({
         title: "Samir Shrestha",
         description: "Personal site of Samir Shrestha. Under construction.",
-        body: html`    <main>
+        body: html`    <main class="container">
       <h1>Samir Shrestha</h1>
       <p>This site is under construction.</p>
     </main>`,

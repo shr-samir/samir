@@ -27,11 +27,19 @@ test("flags a raw duration", () => {
   assert.equal(one(".x { animation-duration: 1.5s; }")[0]!.value, "1.5s");
 });
 
-test("allows var() tokens and the D2 allowlist (0, 100%, 1fr, 65ch)", () => {
+test("allows var() tokens and the D2 allowlist (0, 100%, 100vh, 1fr, 65ch)", () => {
   assert.deepEqual(one(".x { padding: var(--space-m); color: var(--color-text); }"), []);
   assert.deepEqual(one(".x { margin: 0; inset: 0%; }"), []);
   assert.deepEqual(one(".x { grid-template-columns: 1fr; }"), []);
   assert.deepEqual(one(".x { max-width: 65ch; }"), []);
+  // 100vh means "the whole viewport", the same non-design-decision idea as 100% (F1b-D4/L1).
+  assert.deepEqual(one(".x { min-height: 100vh; }"), []);
+});
+
+test("still flags other viewport-unit values, e.g. a raw 50vh, as a real design value", () => {
+  const violations = one(".x { height: 50vh; }");
+  assert.equal(violations.length, 1);
+  assert.equal(violations[0]!.value, "50vh");
 });
 
 test("exempts a custom property's own declared value, e.g. --space-2xl: 32px (it IS the token source)", () => {

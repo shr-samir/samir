@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Owner** | Samir Shrestha |
-| **Status** | Draft v0.16 |
+| **Status** | Draft v0.17 |
 | **Last updated** | 2026-09-30 |
 | **Reference** | [jasoncameron.dev](https://jasoncameron.dev/) — a more refined take on it |
 
@@ -210,12 +210,12 @@ removing the folder and its flag removes the feature (G8, R3).
 - **Confidence:** high (standard language features); the helper gets unit tests.
 
 ### D2: Styling — native CSS with design tokens
-- **Why it fits:** CSS custom properties hold every token (R1). Native features cover the rest: cascade layers (`@layer reset, tokens, base, layout, components, utilities`), nesting, `light-dark()` for themes, `color-mix()` for state overlays, OKLCH colors, `clamp()` for fluid type, container queries [memory: broadly supported in current evergreen browsers]. Component styles live in their own `.css` files, keeping markup free of style noise.
+- **Why it fits:** CSS custom properties hold every token (R1). Native features cover the rest: cascade layers (`@layer reset, tokens, base, layout, components, utilities`), nesting, `light-dark()` for themes, `color-mix()` for state overlays, OKLCH colors, `clamp()` for fluid type, container queries [verified: 94.87% global usage, full support in Chrome/Edge/Safari/Firefox's last 2 versions, caniuse — F1b Gate 1, 2026-09-30]. Component styles live in their own `.css` files, keeping markup free of style noise.
 - **Enforcing R1 without a framework:** a small TypeScript check script fails the build if CSS outside the token file uses raw values (e.g. `px` sizes, hex/OKLCH colors, raw durations) instead of `var(--…)`. A short allowlist covers values that aren't design decisions (`0`, `100%`, `1fr`, `65ch`, hairline `1px` borders), finalized in F1a.
 - **Breakpoints are the one exception to R1:** CSS custom properties can't be used inside `@media` or `@container` conditions [memory: long-standing CSS limitation]. So breakpoint values live in one list (§7.2) and may appear only in query conditions; the check script allows exactly those values there. Page-level layout uses media queries; components use container queries so they adapt to where they're placed.
 - **Alternative:** Tailwind — several extra packages, plus a class-merging pitfall found in a spike (see `docs/learnings.md`), to solve problems native CSS no longer has.
 - **Would be wrong if:** a needed CSS feature lacks support in a target browser; mitigate with progressive enhancement.
-- **Confidence:** high for custom properties and layers; the support claims for `light-dark()` and container queries are [memory], checked in F1a.
+- **Confidence:** high for custom properties, layers, and container queries (all verified — the last in F1b Gate 1); `light-dark()` was verified in F1a L3.
 
 ### D3: Content — Markdown files with frontmatter, validated by hand-written TypeScript
 - **Why it fits:** R2 needs validated content. The schemas are small (a project or post has about 8 fields), so plain TypeScript validators with clear error messages are enough; no schema library.
@@ -380,7 +380,7 @@ IDs are stable; the **Order** column is the build sequence.
 | Order | ID | Feature | Priority | Status |
 |---|---|---|---|---|
 | 1 | F1a | Design tokens and fonts | P0 | done |
-| 2 | F1b | Layout shell | P0 | planned |
+| 2 | F1b | Layout shell | P0 | in progress |
 | 3 | F12 | Deploy pipeline and performance budgets | P0 | planned |
 | 4 | F2 | Site config and feature flags | P0 | planned |
 | 5 | F3 | Theme switcher | P0 | planned |
@@ -577,3 +577,4 @@ and a row in §8 when promoted; dependencies still follow D0.
 | 2026-09-28 | v0.14 — F1a spike S1: TypeScript 7 setup verified (D6 now high confidence, R-7 closed). Added `@types/node` as a second dev-only dependency (D0). Node requirement tightened to ≥ 24.12, where type stripping is stable. Absolute imports via Node subpath imports; tests moved to a mirrored `tests/` folder. Docs layered: `docs/README.md` map, `docs/fundamentals.md`, and an Understanding section in every feature doc. |
 | 2026-09-30 | v0.15 — Q1 resolved in F1a L4: Geist + Geist Mono, self-hosted (Inter measured 100.1 KB for upright + italic, over the 100 KB budget); `meta` stays on the sans font so the mono file loads only on pages with code. |
 | 2026-09-30 | v0.16 — F1a done (all 5 layers: tokens, color, fonts, raw-value check, plus a `pnpm preview` server and an accessibility close-out). Q2 resolved: violet default accent, all 4 selectable. Next: F1b (layout shell). |
+| 2026-09-30 | v0.17 — F1b (layout shell) started: Phase 1 approved at Gate 1, checklist frozen. Container queries (D2) upgraded from `[memory]` to `[verified]` — 94.87% global usage, full support across Chrome/Edge/Safari/Firefox's last 2 versions. Two spikes resolved: mobile menu disclosure snaps open/closed (no cross-browser way to animate it); `fs.watch` on Windows fires 2 events per save, requires debouncing. |

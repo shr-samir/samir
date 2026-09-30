@@ -17,3 +17,4 @@ current feature's Understanding section → How it works.
 | ID | Doc | Status |
 |---|---|---|
 | F1a | [Design tokens and fonts](features/F1a-design-tokens-and-fonts.md) | done |
+| F1b | [Layout shell](features/F1b-layout-shell.md) | in progress |

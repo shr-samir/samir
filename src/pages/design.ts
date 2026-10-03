@@ -175,8 +175,10 @@ export default function pages(): Page[] {
     {
       path: "/design/",
       body: document({
+        path: "/design/",
         title: "Design system · Samir Shrestha",
         description: "Every design token on this site: color palettes, type scale, spacing, radius, elevation and motion.",
+        lang: "en",
         body: html`    <main class="demo">
       <header>
         <h1>Design system</h1>

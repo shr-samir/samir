@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <style>
+    .bg { fill: oklch(99% 0.003 295); }
+    .accent-bar { fill: oklch(50% 0.16 295); }
+    .name { font-family: 'Geist', system-ui, sans-serif; font-weight: 700; font-size: 72px; fill: oklch(24% 0.015 295); }
+    .tagline { font-family: 'Geist', system-ui, sans-serif; font-weight: 400; font-size: 32px; fill: oklch(46% 0.015 295); }
+  </style>
+  <rect class="bg" width="1200" height="630" />
+  <rect class="accent-bar" x="0" y="0" width="16" height="630" />
+  <text class="name" x="96" y="330">Samir Shrestha</text>
+  <text class="tagline" x="96" y="390">Projects, writing, and how to get in touch</text>
+</svg>

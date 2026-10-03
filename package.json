@@ -15,7 +15,8 @@
   },
   "imports": {
     "#src/*": "./src/*",
-    "#scripts/*": "./scripts/*"
+    "#scripts/*": "./scripts/*",
+    "#site.config.ts": "./site.config.ts"
   },
   "devDependencies": {
     "@types/node": "^24.19.0",

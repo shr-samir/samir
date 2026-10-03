@@ -10,6 +10,7 @@ import { dirname, join, relative, resolve, isAbsolute } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { outputFile, type Page, type PageModule } from "#src/lib/page.ts";
 import { checkRawValues } from "#scripts/check-raw-values.ts";
+import { checkMetadata, extractMetadata } from "#scripts/check-metadata.ts";
 
 export interface BuildOptions {
   /** Project root containing `src/pages/` and optionally `public/`. */
@@ -44,6 +45,14 @@ export async function build({ root, outDir = join(root, "dist") }: BuildOptions)
   }
 
   const pages = await loadPages(join(root, "src", "pages"));
+
+  // Every page needs complete, unique metadata (R9), checked before any file is written.
+  const metadataViolations = checkMetadata(pages.map((page) => extractMetadata(page.path, page.body.value)));
+  if (metadataViolations.length > 0) {
+    const list = metadataViolations.map((v) => `  - "${v.path}": ${v.message}`).join("\n");
+    throw new Error(`Page metadata is incomplete or duplicated:\n${list}`);
+  }
+
   for (const page of pages) {
     await writeNew(join(outDir, outputFile(page.path)), page.body.value, `Page "${page.path}"`);
   }

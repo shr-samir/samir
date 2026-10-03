@@ -8,8 +8,10 @@ export default function pages(): Page[] {
     {
       path: "/",
       body: document({
+        path: "/",
         title: "Samir Shrestha",
         description: "Personal site of Samir Shrestha. Under construction.",
+        lang: "en",
         body: html`    <main class="container">
       <h1>Samir Shrestha</h1>
       <p>This site is under construction.</p>

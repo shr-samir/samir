@@ -1,8 +1,4 @@
-/**
- * Color math for the contrast and gamut checks (F1a-D7). Colors are authored
- * in OKLCH; WCAG contrast is defined on sRGB luminance, so each color is
- * converted OKLCH → OKLab → linear sRGB (Björn Ottosson's published matrices).
- */
+/** Color math for contrast/gamut checks (F1a-D7): OKLCH → linear sRGB, per Björn Ottosson's matrices. */
 
 export interface Oklch {
   /** Lightness, 0 (black) to 1 (white). */
@@ -47,11 +43,7 @@ export function inSrgbGamut(color: Oklch): boolean {
   return [r, g, b].every((channel) => channel >= -GAMUT_EPSILON && channel <= 1 + GAMUT_EPSILON);
 }
 
-/**
- * The most colorful version of a lightness and hue that an sRGB screen can
- * show. How much chroma fits depends heavily on both: dark teals and blues
- * run out quickly, light yellows too.
- */
+/** Most colorful chroma an sRGB screen can show at a given lightness and hue. */
 export function maxChroma(l: number, h: number): number {
   let [low, high] = [0, 0.4];
   for (let i = 0; i < 30; i++) {
@@ -90,4 +82,18 @@ export function toCss({ l, c, h, alpha = 1 }: Oklch): string {
   const round = (n: number, digits: number) => Number(n.toFixed(digits));
   const base = `${round(l * 100, 2)}% ${round(c, 4)} ${round(h, 2)}`;
   return alpha === 1 ? `oklch(${base})` : `oklch(${base} / ${round(alpha, 3)})`;
+}
+
+/** Linear-light value, clamped to 0–1, gamma-encoded to one 8-bit sRGB channel. */
+function linearToSrgbByte(value: number): number {
+  const clamped = Math.min(1, Math.max(0, value));
+  const encoded = clamped <= 0.0031308 ? clamped * 12.92 : 1.055 * clamped ** (1 / 2.4) - 0.055;
+  return Math.round(encoded * 255);
+}
+
+/** Hex string for contexts that can't use oklch() (e.g. theme-color, limited browser support [verified: MDN]). Clamps out-of-gamut input instead of throwing. */
+export function toHex(color: Oklch): string {
+  const { r, g, b } = toLinearSrgb(color);
+  const hex = (channel: number) => linearToSrgbByte(channel).toString(16).padStart(2, "0");
+  return `#${hex(r)}${hex(g)}${hex(b)}`;
 }

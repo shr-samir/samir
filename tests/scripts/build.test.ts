@@ -20,9 +20,20 @@ async function fixture(files: Record<string, string>): Promise<string> {
   return root;
 }
 
+/** Bare body (escaped), no document wrapper — for build-mechanics tests, not metadata. */
 function pageModule(pages: Array<[path: string, body: string]>): string {
   return `import { html } from "${HTML_MODULE}";
 export default () => ${JSON.stringify(pages)}.map(([path, body]) => ({ path, body: html\`\${body}\` }));`;
+}
+
+/** Full HTML document with valid default metadata; override only the field under test. */
+function documentPageModule(pages: Array<{ path: string; title?: string; description?: string; canonical?: string }>): string {
+  const docs = pages.map(({ path, title = `Title ${path}`, description = `Description ${path}`, canonical = `https://example.com${path}` }) => [
+    path,
+    `<!doctype html><html><head><title>${title}</title><meta name="description" content="${description}"><link rel="canonical" href="${canonical}"></head><body>x</body></html>`,
+  ]);
+  return `import { raw } from "${HTML_MODULE}";
+export default () => ${JSON.stringify(docs)}.map(([path, body]) => ({ path, body: raw(body) }));`;
 }
 
 async function withFixture(files: Record<string, string>, run: (root: string) => Promise<void>): Promise<void> {
@@ -169,4 +180,43 @@ test("refuses an output directory that is the root or outside it", () =>
     await assert.rejects(build({ root, outDir: root }), /must be inside the project root/);
     await assert.rejects(build({ root, outDir: join(root, "..") }), /must be inside the project root/);
     await access(join(root, "src", "pages", "index.ts")); // nothing was deleted
+  }));
+
+test("succeeds when every real page has complete, unique metadata (O3, O4)", () =>
+  withFixture(
+    { "src/pages/index.ts": documentPageModule([{ path: "/" }, { path: "/about/" }]) },
+    async (root) => {
+      const result = await build({ root });
+      assert.deepEqual(result.pages.sort(), ["/", "/about/"]);
+    },
+  ));
+
+test("fails the build on a missing title, description or canonical (O4)", () =>
+  withFixture({ "src/pages/index.ts": documentPageModule([{ path: "/", title: "" }]) }, async (root) => {
+    await assert.rejects(build({ root }), /Page metadata is incomplete.*"\/": missing title/s);
+  }));
+
+test("fails the build on a duplicate title, description or canonical across pages (O4)", () =>
+  withFixture(
+    {
+      "src/pages/index.ts": documentPageModule([
+        { path: "/", title: "Same Title" },
+        { path: "/about/", title: "Same Title" },
+      ]),
+    },
+    async (root) => {
+      await assert.rejects(build({ root }), /duplicate title "Same Title", also used by \//);
+    },
+  ));
+
+test("does not check a bare fragment with no <title> at all (build-mechanics fixtures stay exempt)", () =>
+  withFixture({ "src/pages/index.ts": pageModule([["/", "Home"]]) }, async (root) => {
+    const result = await build({ root });
+    assert.deepEqual(result.pages, ["/"]);
+  }));
+
+test("checks metadata before writing any output file", () =>
+  withFixture({ "src/pages/index.ts": documentPageModule([{ path: "/", canonical: "" }]) }, async (root) => {
+    await assert.rejects(build({ root }), /Page metadata is incomplete/);
+    await assert.rejects(access(join(root, "dist", "index.html")));
   }));

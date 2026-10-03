@@ -540,7 +540,53 @@ removing pieces until the smallest reproducing file was found, then diffing
 it against a same-shaped but non-reproducing file to see the one real
 difference. → [F1b's discovered checklist](features/F1b-layout-shell.md#discovered-checklist)
 
-## 16. Coming in later layers
+## 16. Metadata a browser and a crawler both need, and where it lives
+
+A framework's "head management" library (React Helmet, Next.js's `metadata`
+export) solves one problem: every page needs the same handful of `<head>`
+tags, filled in per-page, with no way to forget one. Here that's just a
+TypeScript function signature: `document()` requires `title`, `description`,
+`path` and `lang` as arguments, so a missing one is a compile error, not a
+missing tag a crawler silently doesn't see.
+
+**Three tags, three audiences:**
+
+```html
+<title>…</title>                                  <!-- the browser tab, search results -->
+<meta name="description" content="…">             <!-- search result snippet -->
+<link rel="canonical" href="https://…">           <!-- "this is the one true URL for this content" -->
+<meta property="og:title" content="…">            <!-- Facebook, LinkedIn, Slack unfurls -->
+<meta name="twitter:title" content="…">           <!-- X/Twitter's own, separate tag set -->
+```
+
+The canonical URL matters because URLs can be reached more than one way (with
+or without a trailing slash, `http` vs `https`); it tells a search engine
+which version to actually index, so duplicate content isn't split across two
+URLs.
+
+**Checking the rendered output, not the inputs.** It would be simpler to
+check that `document()` was *called* with a title — but that only proves the
+call site passed something, not that the template actually put it in the
+HTML. This project's [metadata check](features/F1b-layout-shell.md#head-metadata-l2)
+instead pulls the tags back out of the real rendered string with a few small
+regexes, the same way the [raw-value check](#14-fonts-when-they-download-and-why-text-doesnt-jump)
+reads real CSS instead of trusting the code that generated it. Neither is a general-purpose
+parser (an HTML parser or a CSS parser would be more correct in the abstract)
+— both only need to handle the fixed, small set of shapes this project's own
+templates actually produce, which is enough to catch a real bug in the
+template itself, not just at the call site.
+
+**A CSS color a `<meta>` tag can't read.** `theme-color` (the color a mobile
+browser tints its own address bar) is a plain HTML attribute, not CSS — it
+can't read a CSS custom property, and its own browser support is narrow
+enough that sticking to a plain hex color is the documented safe choice, not
+the newer `oklch()`/`lab()` functions this site's CSS otherwise uses
+throughout. So the token's real OKLCH value is converted to hex once, in
+TypeScript, with the same linear-sRGB math already written for the contrast
+checker (`toHex()` in `color.ts`) — computed from the token, rather than a
+hex value typed in by eye and left to quietly drift out of sync.
+
+## 17. Coming in later layers
 
 Sections to add as the features that need them are built:
 

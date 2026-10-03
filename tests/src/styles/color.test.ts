@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { contrastRatio, inSrgbGamut, relativeLuminance, srgbChannelToLinear, toCss, toLinearSrgb, type Oklch } from "#src/styles/color.ts";
+import { contrastRatio, inSrgbGamut, relativeLuminance, srgbChannelToLinear, toCss, toHex, toLinearSrgb, type Oklch } from "#src/styles/color.ts";
 
 const WHITE: Oklch = { l: 1, c: 0, h: 0 };
 const BLACK: Oklch = { l: 0, c: 0, h: 0 };
@@ -55,4 +55,20 @@ test("detects colors outside the sRGB gamut", () => {
 test("formats CSS with and without alpha", () => {
   assert.equal(toCss({ l: 0.5, c: 0.12345678, h: 250.123 }), "oklch(50% 0.1235 250.12)");
   assert.equal(toCss({ l: 0.2, c: 0, h: 0, alpha: 0.08 }), "oklch(20% 0 0 / 0.08)");
+});
+
+test("renders black, white and pure sRGB red as their known hex values", () => {
+  assert.equal(toHex(BLACK), "#000000");
+  assert.equal(toHex(WHITE), "#ffffff");
+  assert.equal(toHex({ l: 0.62796, c: 0.25768, h: 29.2339 }), "#ff0000");
+});
+
+test("clamps an out-of-gamut color instead of throwing", () => {
+  assert.doesNotThrow(() => toHex({ l: 0.9, c: 0.3, h: 250 }));
+  assert.match(toHex({ l: 0.9, c: 0.3, h: 250 }), /^#[0-9a-f]{6}$/);
+});
+
+test("matches the #767676 WCAG reference gray", () => {
+  const gray: Oklch = { l: 0.56577, c: 0, h: 0 };
+  assert.equal(toHex(gray), "#767676");
 });

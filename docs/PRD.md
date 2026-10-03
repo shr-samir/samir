@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Owner** | Samir Shrestha |
-| **Status** | Draft v0.17 |
+| **Status** | Draft v0.18 |
 | **Last updated** | 2026-09-30 |
 | **Reference** | [jasoncameron.dev](https://jasoncameron.dev/) — a more refined take on it |
 
@@ -578,3 +578,4 @@ and a row in §8 when promoted; dependencies still follow D0.
 | 2026-09-30 | v0.15 — Q1 resolved in F1a L4: Geist + Geist Mono, self-hosted (Inter measured 100.1 KB for upright + italic, over the 100 KB budget); `meta` stays on the sans font so the mono file loads only on pages with code. |
 | 2026-09-30 | v0.16 — F1a done (all 5 layers: tokens, color, fonts, raw-value check, plus a `pnpm preview` server and an accessibility close-out). Q2 resolved: violet default accent, all 4 selectable. Next: F1b (layout shell). |
 | 2026-09-30 | v0.17 — F1b (layout shell) started: Phase 1 approved at Gate 1, checklist frozen. Container queries (D2) upgraded from `[memory]` to `[verified]` — 94.87% global usage, full support across Chrome/Edge/Safari/Firefox's last 2 versions. Two spikes resolved: mobile menu disclosure snaps open/closed (no cross-browser way to animate it); `fs.watch` on Windows fires 2 events per save, requires debouncing. |
+| 2026-10-01 | v0.18 — F1b L1 (layout primitives, page shell, container queries) and L2 (head metadata, build check, `site.config.ts`, placeholder favicons/OG image, computed `theme-color`) done. `site.config.ts` created a layer earlier than planned (L2, not L3), since canonical URLs need a site URL to exist. |

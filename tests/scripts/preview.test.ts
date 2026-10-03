@@ -3,7 +3,24 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { spawn } from "node:child_process";
 import { preview } from "#scripts/preview.ts";
+
+const PREVIEW_SCRIPT = join(import.meta.dirname, "..", "..", "scripts", "preview.ts");
+
+/** Runs the real CLI (`import.meta.main`, untestable by importing directly); waits a fixed delay then reads accumulated output, since the server never exits. */
+function runPreviewCli(env: Record<string, string>) {
+  const child = spawn(process.execPath, [PREVIEW_SCRIPT], { env: { ...process.env, ...env } });
+  let stdout = "";
+  let stderr = "";
+  child.stdout.on("data", (chunk: Buffer) => (stdout += chunk.toString()));
+  child.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString()));
+  const output = async () => {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    return { stdout, stderr, exitCode: child.exitCode };
+  };
+  return { output, kill: () => child.kill() };
+}
 
 /** Starts preview() on an ephemeral port and returns a fetch scoped to it, plus a cleanup fn. */
 async function withPreview(files: Record<string, string>) {
@@ -103,5 +120,34 @@ test("decodes a URL-encoded path", async () => {
     assert.equal(await (await get("/a%20b.html")).text(), "spaced");
   } finally {
     await close();
+  }
+});
+
+test("CLI: PORT overrides the default port", async () => {
+  const cli = runPreviewCli({ PORT: "0" });
+  try {
+    const { stdout } = await cli.output();
+    assert.match(stdout, /Previewing dist\/ at http:\/\/localhost:0\//); // "0" only appears if PORT was read
+  } finally {
+    cli.kill();
+  }
+});
+
+test("CLI: a second instance on the same port prints a friendly message and exits non-zero, not a raw stack trace", async () => {
+  const first = runPreviewCli({ PORT: "4189" }); // fixed port, unlikely to collide
+  try {
+    await first.output();
+    const second = runPreviewCli({ PORT: "4189" });
+    try {
+      const { stderr, exitCode } = await second.output();
+      assert.match(stderr, /Port 4189 is already in use/);
+      assert.match(stderr, /PORT=4174 pnpm preview/);
+      assert.doesNotMatch(stderr, /EADDRINUSE|at Server\.setupListenHandle/); // no raw Node stack trace
+      assert.equal(exitCode, 1);
+    } finally {
+      second.kill();
+    }
+  } finally {
+    first.kill();
   }
 });

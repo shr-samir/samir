@@ -24,7 +24,7 @@ pages, and `pnpm dev` gives a live-reloading way to work on it.
 | Layer | In one line | Status |
 |---|---|---|
 | L1 Layout primitives | Container/section/stack/grid; components size to their own container, not the screen | in review |
-| L2 Head metadata | Every page's `<head>` is complete, unique, and build-checked | planned |
+| L2 Head metadata | Every page's `<head>` is complete, unique, and build-checked | in review |
 | L3 Header, nav, menu | Site nav and a no-JS mobile menu | planned |
 | L4 Footer, buttons, 404 | Remaining chrome pieces and the 404 page | planned |
 | L5 Dev server | `pnpm dev`: rebuild on change, reload the browser | planned |
@@ -116,6 +116,81 @@ job) and `min-width: 0` (removing the one remaining content-based minimum),
 nothing was left constraining `main`'s width at all. An explicit
 `width: 100%` restores it directly, rather than relying on inherited stretch
 behavior that turned out not to survive the combination.
+
+### L2 — Head metadata
+
+**Essence.** Every page now carries complete, unique SEO and link-preview
+metadata (title, description, canonical URL, OG/Twitter tags, favicons,
+`theme-color`), through one shared `document()` contract that makes a
+missing field a type error, and a build check that catches a missing or
+duplicated value in the *rendered* output — so a bug in `document()` itself
+can't slip past the check either. A minimal `site.config.ts` was added a
+layer earlier than planned (originally L3), since canonical URLs genuinely
+can't be built without a site URL to anchor them to.
+
+**What changed**
+- `site.config.ts`: name, `url` (placeholder `https://example.com` per Q8;
+  the production build failing on that placeholder is F12's job, not F1b's),
+  description, nav links — moved up from L3, see below.
+- `src/layout/document.ts`: rewritten. `DocumentOptions` now requires `path`
+  and `lang` alongside title/description; generates canonical URL, OG tags,
+  Twitter card tags, favicon links and a computed `theme-color`.
+- `scripts/check-metadata.ts`: extracts title/description/canonical from
+  rendered HTML and reports every missing or duplicated one, naming the page
+  and (for duplicates) the earlier page using the same value.
+- `scripts/build.ts`: runs the metadata check right after loading pages,
+  before any file is written — the same "fail before touching disk" pattern
+  as the raw-value check.
+- `src/styles/color.ts`: added `toHex()`, since `theme-color` needs a hex
+  value, not `oklch()` (below).
+- `public/`: `og-default.png` (1200×630), `favicon.ico`, `favicon.svg`,
+  `apple-touch-icon.png` — see `assets/src/README.md` for how they were made.
+- `src/pages/index.ts`, `src/pages/design.ts`: updated to pass `path`/`lang`.
+
+**Questions asked**
+- *Where should `site.config.ts` live given L2 needs it but it was planned
+  for L3?* Built now, minimally (name/url/description/nav); L3 only adds
+  reading the nav for the header. (F1b-D5)
+- *How should the OG image and favicons be generated, given rasterizing SVG
+  to PNG needs a real dependency the PRD defers to F11?* Authored as SVG
+  once, screenshotted with headless Chrome (already available on this
+  machine), committed as static files — no dependency, no build step. See
+  `assets/src/README.md`.
+
+**Questions you might have**
+- *Why does a bare HTML fragment (no `<title>`) skip the metadata check?*
+  Nothing in this site ever ships a real page with no `<title>` — it's only
+  low-level build tests that render a body with no document wrapper at all,
+  to test file-writing in isolation. A page that *has* a title but is
+  missing description or canonical is still a real, caught violation.
+- *Why extract metadata from the rendered HTML instead of checking
+  `document()`'s inputs directly?* It catches a bug in the template itself
+  (e.g. a typo dropping the `<meta description>` tag), not just a missing
+  argument at the call site — the check verifies what a visitor or crawler
+  would actually receive.
+- *Why is `theme-color` computed, not just a hex code I pick?* A typed-in
+  guess (`#fbfbfd`, tried first) was subtly wrong — the real value is
+  `#fcfbfe`. Computing it from the same palette generator the CSS itself
+  reads (`buildPalette(accents[0], "light").bg`, converted to hex) means it
+  can never drift from the actual background color, even if the default
+  accent or its lightness changes later.
+- *Why convert to hex instead of using the token's `oklch()` string
+  directly?* `theme-color` itself has limited browser availability (not
+  Baseline) and MDN's documented safe formats are hex/rgb/named colors, not
+  the newer color functions — checked, not assumed. → [`toHex` in
+  `color.ts`](../../src/styles/color.ts)
+- *Are structured data (Person, BlogPosting JSON-LD) part of this layer?*
+  No — the PRD puts that in F11, alongside real per-post OG images.
+
+**`pnpm preview` follow-up.** Running `pnpm preview` twice crashed with a raw
+`EADDRINUSE` stack trace instead of a clear message, and had no way to move
+to a different port. Fixed: a `PORT` environment override, and a friendly
+message naming the problem and how to retry, in both PowerShell and bash
+syntax. Writing a test for the override caught a real bug before it shipped:
+`Number(process.env.PORT) || 4173` silently ignores `PORT=0` (a legitimate
+"give me any free port" request), since `0` is falsy in JavaScript — fixed
+to `process.env.PORT ? Number(…) : 4173` (X5, X6).
+
 ## Problem statement
 F1b builds the shared shell every page sits inside: the page `<head>` with
 complete metadata, a header with navigation and a mobile menu, a footer, a
@@ -256,6 +331,39 @@ Each layer is one PR, adds standalone value, and is approved before the next.
   usage; full support in Chrome/Edge/Safari/Firefox's last 2 versions]
 - **Spike:** none (checked directly via caniuse).
 
+### F1b-D5: A minimal `site.config.ts` is built in L2, not L3 as originally planned
+- **Decision:** `name`, `url`, `description`, `nav` now; L3 only adds reading
+  `nav` into the header (it doesn't need to create the file).
+- **Why it fits:** canonical URLs and OG `og:url`/`og:site_name` need a base
+  site URL to exist; there's no way to build real metadata without it. The
+  PRD's own project structure lists `site.config.ts` as F1b-owned overall,
+  just not pinned to a specific layer within it.
+- **Alternative:** hardcode the placeholder URL directly in `document.ts`
+  until L3 — creates a value duplicated across two places the moment
+  `site.config.ts` is created, for no real benefit.
+- **Would be wrong if:** L3's nav needs a config shape incompatible with
+  what L2 already committed to — low risk, since `nav` here is already the
+  exact `{ label, href }[]` shape a header needs.
+- **Confidence:** high.
+- **Spike:** none.
+
+### F1b-D6: The placeholder OG image and favicons are authored once, not generated at build time
+- **Decision:** hand-authored SVGs (tokens-based colors, Geist font),
+  screenshotted once with headless Chrome at each target size, committed as
+  static PNG/ICO/SVG files in `public/`. Sources kept in `assets/src/`
+  (outside `public/`, so they aren't copied to `dist/`).
+- **Why it fits:** OG image generation is explicitly an F11-decided
+  dependency in the PRD's D0 — building a real SVG → PNG pipeline now would
+  preempt that decision for a placeholder that F11 replaces anyway.
+- **Alternative:** a build-time rasterizer (`sharp`, `resvg`) — a real
+  dependency, decided too early; or ship SVG-only and skip PNG — breaks
+  Apple's `apple-touch-icon` (no SVG fallback) and most social crawlers.
+- **Would be wrong if:** the placeholder needs to change often enough that
+  re-running the screenshot step by hand becomes a real burden — revisit at
+  F11 regardless.
+- **Confidence:** high.
+- **Spike:** none.
+
 ## Edge cases
 - A nav link to a not-yet-built page (F1b-D1): must not 404 silently during
   development; the 404 page itself (also F1b) makes this visible.
@@ -338,14 +446,14 @@ Frozen at approval (2026-09-30). Never edited afterwards; only ticked.
   render correctly (no regression).
 
 **L2 — Head metadata + build check**
-- [ ] O3. Every page supplies: title, description, canonical URL, `lang`,
+- [x] O3. Every page supplies: title, description, canonical URL, `lang`,
   OG title/description/image, Twitter card tags — via one shared contract,
   not hand-written per page.
-- [ ] O4. The build fails if any page is missing metadata, or if two pages
+- [x] O4. The build fails if any page is missing metadata, or if two pages
   share the same title, description, or canonical URL.
-- [ ] O5. A generated placeholder OG image (1200×630, tokens-based) and a
+- [x] O5. A generated placeholder OG image (1200×630, tokens-based) and a
   generated favicon set exist in `public/`, wired into every page's `<head>`.
-- [ ] O6. `theme-color` reflects the default (violet, light) palette.
+- [x] O6. `theme-color` reflects the default (violet, light) palette.
 
 **L3 — Header, nav, skip link, mobile menu**
 - [ ] O7. Header with site name (links home) and nav (Projects, Blog, About,
@@ -400,14 +508,90 @@ Anything unplanned. Never moved into the original checklist.
   `layout.css` — **Blocking** (fixed: `100vh` added to `ALLOWED_VALUES` in
   `check-raw-values.ts`, with a test for both the allowed case and that other
   viewport-unit values, e.g. `50vh`, are still correctly flagged)
+- [x] X3. My first hardcoded `theme-color` guess (`#fbfbfd`) was subtly
+  wrong — the real `--color-bg` value is `#fcfbfe` — **Trigger:** computed
+  the real value from the palette generator to double-check the guess, per
+  habit rather than because the guess looked wrong — **Blocking** (fixed:
+  `theme-color` now computed from `buildPalette(accents[0], "light").bg` via
+  a new `toHex()` helper, so it can never drift from the real token again)
+- [ ] X4. `/design/`'s own `.demo` container class duplicates what L1's
+  `.container-wide` now does — **Trigger:** L1 review, noted but not
+  addressed (scope) — **Deferrable**: unify when `/design/` gets its next
+  real pass, not blocking F1b
+- [x] X5. `pnpm preview` crashed with a raw Node stack trace on `EADDRINUSE`
+  instead of a clear message, and had no way to run on a different port when
+  one instance was already running — **Trigger:** the owner hit exactly this
+  running `pnpm preview` twice — **Blocking** (fixed: a `PORT` env override
+  and a friendly "already in use" message with both PowerShell and bash
+  syntax to retry on another port)
+- [x] X6. The `PORT` override used `Number(process.env.PORT) || 4173`, which
+  silently ignores `PORT=0` (a legitimate way to ask the OS for any free
+  port) and falls back to the default instead, since `0` is falsy in
+  JavaScript — **Trigger:** writing a test for the `PORT` override, before
+  trusting that it worked — **Blocking** (fixed: `process.env.PORT ? Number(…) : 4173`;
+  mutation-tested by reverting to the `||` form and confirming the new test
+  catches it)
 
 ## Layer log
 
 | Layer | PR | Verified by | Checklist items ticked |
 |---|---|---|---|
 | L1 | — | `pnpm typecheck` exit 0; `pnpm test` 113/113 pass (layout.css structure: shell sizing, container-type, container/container-wide use width tokens, section/stack/grid rules, plus the width:100% regression test, all mutation-tested); `pnpm build`; headless Chrome screenshots of `/` and `/design/` at 1280px and 375px confirm no regression and the width-collapse bug is fixed; a real bug (X1) was found, root-caused by bisecting the actual generated CSS (not hand-typed reconstructions) after several plausible theories failed to reproduce it, and fixed | O1, O2, X1, X2 |
+| L2 | — | `pnpm typecheck` exit 0; `pnpm test` 136/136 pass (`check-metadata.ts` unit tests incl. mutation-tested title-exemption logic; `document.ts` tests for canonical URL, OG/Twitter tags, computed `theme-color`, escaping, favicon links; `build.ts` integration tests for missing/duplicate metadata, checked before any file is written; `toHex()` against known black/white/red/`#767676` references); end-to-end: injecting a real duplicate description into `src/pages/design.ts` failed `pnpm build` naming both pages, reverting restored a clean build; real screenshots of `/` and `/design/` confirm no visual regression | O3, O4, O5, O6, X3 |
+| L2 follow-up (preview server) | — | `pnpm typecheck` exit 0; `pnpm test` 138/138 pass; reproduced the owner's exact `EADDRINUSE` crash and confirmed the new friendly message replaces it; confirmed `PORT=4174` actually serves on that port; a `PORT=0` test caught a real bug (`\|\|` silently ignoring a falsy `0`) before it shipped, mutation-tested by reverting the fix and confirming the test then fails | X5, X6 |
 
 ## How it works
-*(written once L1 lands — a plain-language walkthrough of the layout
-primitives, container-query mechanics, metadata contract, header/menu, and
-dev server, file by file.)*
+
+### Layout primitives and the page shell (L1)
+`layout.css` lives in the `layout` cascade layer, after `base` and before
+`components` — so component CSS (like `/design/`'s `.demo`) can always
+override a layout rule without a specificity fight, and layout rules always
+beat base defaults.
+
+1. **The shell.** `body { display: flex; flex-direction: column }` stacks
+   `header`/`main`/`footer` vertically. `header`/`footer` get `flex: none`
+   (size to their own content); `main` gets `flex: 1` (take whatever height
+   is left). `main` also gets `width: 100%` — without it, combined with
+   `container-type: inline-size` below, `main` can collapse to almost
+   nothing (see X1). `container-type: inline-size` turns `main` into a size
+   container, so anything nested inside it can use `@container` queries to
+   react to *its own* available width, never `window.innerWidth`.
+2. **Containers.** `.container` (≈680px) and `.container-wide` (≈1120px) cap
+   line length and center content, with a responsive gutter
+   (`--space-s` mobile, `--space-m` at 768px+) from the width tokens, never a
+   hardcoded pixel value.
+3. **Section, stack, grid.** `.section + .section` puts space only *between*
+   sections, never around a single one. `.stack` uses flex `gap` (not
+   margins, which would leak onto the group's outer edges) for consistent
+   spacing between related children. `.grid` steps 4 → 8 → 12 columns at the
+   `md`/`lg` breakpoints.
+
+### Head metadata (L2)
+1. **Contract.** `document({ path, title, description, lang, body })` is the
+   only way any page builds its `<head>` — there's no optional field, so
+   `tsc` catches a missing one before the build even runs.
+2. **Canonical and OG URLs.** `canonicalUrl(path)` is just
+   `siteConfig.url + path`; the same helper builds the OG image's absolute
+   URL, since social crawlers need a full URL, not a root-relative path.
+3. **`theme-color`.** Computed once, at module load, from the real palette:
+   `buildPalette(accents[0], "light").bg` is the exact OKLCH color the CSS
+   itself uses for the background; `toHex()` (new in `color.ts`) converts it
+   through the same linear-sRGB math the contrast checker already uses, so
+   the value can never quietly drift from the token.
+4. **The metadata check.** `checkRawValues`-style: `check-metadata.ts` pulls
+   `<title>`, `<meta name="description">` and `<link rel="canonical">` back
+   out of each page's *rendered* HTML with three small regexes (not a full
+   parser — this project's own HTML, not arbitrary input), then checks every
+   page has all three and that no value repeats across pages. `build.ts`
+   runs it right after loading pages and before writing any file, so a
+   violation fails the build with nothing written — the same "check before
+   touching disk" shape as the raw-value check (F1a-L5).
+5. **The one exemption.** A page whose rendered HTML has no `<title>` tag at
+   all is skipped by the check. That's not a loophole for real pages — every
+   real page goes through `document()`, which always sets `<title>` — it
+   only exempts the handful of low-level `build.test.ts` fixtures that
+   render a bare body fragment on purpose, to test file-writing in isolation
+   from `document()`.
+6. **Placeholder images.** `og-default.png`, `favicon.ico`, `favicon.svg`,
+   `apple-touch-icon.png` are static files in `public/`, authored once from
+   SVG sources in `assets/src/` (see that folder's README for exactly how).

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <style>
+    .bg { fill: oklch(50% 0.16 295); }
+    .mark { font-family: 'Geist', system-ui, sans-serif; font-weight: 700; font-size: 17px; fill: oklch(99% 0.003 295); }
+  </style>
+  <rect class="bg" width="32" height="32" rx="6" />
+  <text class="mark" x="16" y="22" text-anchor="middle">SS</text>
+</svg>
